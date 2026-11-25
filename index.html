@@ -50,8 +50,20 @@ a{color:var(--acc)}
 .calc input{width:140px;font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--ink);min-height:40px}
 .calc input:focus-visible{outline:2px solid var(--acc)}
 .calc button{background:#232733;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:40px}
-#edgeChart{height:180px;border-radius:6px;overflow:hidden}
-.thr{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);margin-bottom:8px}
+.edge{margin-top:12px}
+.edgeHead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.edgeHead h3{margin:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.tiles div{background:var(--panel);padding:10px 12px;display:flex;flex-direction:column}
+.tiles b{font-size:20px;font-weight:500;white-space:nowrap}
+.tiles span{font-size:12px;color:var(--mute)}
+.efig{position:relative;height:220px}
+.efig svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.etip{position:absolute;top:4px;pointer-events:none;background:#0f1115;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;white-space:nowrap}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--mute);margin-top:8px}
+.legend i{display:inline-block;width:14px;height:10px;margin-right:6px;vertical-align:-1px;border-radius:2px}
+.lg-band{background:rgba(38,166,154,.28)}.lg-line{height:2px!important;background:var(--up)}.lg-thr{height:0!important;border-top:2px dashed var(--acc)}
+.thr{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute)}
 .thr input{width:80px;font:inherit;font-size:16px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--ink);min-height:36px}
 .note{font-size:12px;color:var(--mute);margin:10px 0 0}
 </style>
@@ -90,24 +102,31 @@ a{color:var(--acc)}
       </div>
     </div>
     <div class="card">
-      <h3>Edge history: how long windows stay open</h3>
-      <div class="thr"><label for="thr">Alert level</label><input id="thr" type="number" inputmode="decimal" min="0.1" step="0.5" value="5"><span>% over burning</span></div>
-      <div id="edgeChart"></div>
-      <div class="kv" style="margin-top:8px">
-        <span>Windows at or above the alert level (loaded history)</span><b id="winCount">—</b>
-        <span>Typical (median) time open</span><b id="winMed">—</b>
-        <span>Shortest / longest</span><b id="winRange">—</b>
-        <span>Current window</span><b id="winNow">—</b>
-      </div>
+      <h3>Try an amount</h3>
+      <form class="calc" id="calc">
+        <input id="amt" type="number" inputmode="decimal" min="0" step="any" value="100" aria-label="KOIN to swap">
+        <span>KOIN</span>
+        <button type="button" id="useBest">Use best amount</button>
+      </form>
+      <div class="big" id="calcOut" style="margin-top:10px">—</div>
+      <div class="kv"><span>Compared with burning</span><b id="calcDiff">—</b><span>Average rate</span><b id="calcRate">—</b></div>
+      <p class="note">"Best amount" is the swap size that gives you the most extra VHP in total. Smaller swaps get a better rate per KOIN but less extra VHP overall. Above it, each additional KOIN buys less than 1 extra VHP. This assumes your swap is the next one in the pool, so check again right before you trade.</p>
     </div>
   </div>
-  <form class="calc" id="calc">
-    <label for="amt">Try an amount:</label>
-    <input id="amt" type="number" inputmode="decimal" min="0" step="any" value="100">
-    <span>KOIN →</span><b id="calcOut">—</b>
-    <button type="button" id="useBest">Use best amount</button>
-  </form>
-  <p class="note">"Best amount" is the swap size that gives you the most extra VHP in total. Smaller swaps get a better rate per KOIN but less extra VHP overall. Above the best amount, each additional KOIN buys less than 1 extra VHP. This assumes your swap is the next one in the pool. Figures update with every pool change, so check again right before you trade.</p>
+  <div class="card edge">
+    <div class="edgeHead">
+      <h3>Edge history: how long windows stay open</h3>
+      <div class="thr"><label for="thr">Alert level</label><input id="thr" type="number" inputmode="decimal" min="0.1" step="0.5" value="5"><span>%</span></div>
+    </div>
+    <div class="tiles">
+      <div><b id="winNow">—</b><span>Right now</span></div>
+      <div><b id="winMed">—</b><span>Typical window lasts</span></div>
+      <div><b id="winRange">—</b><span>Shortest – longest</span></div>
+      <div><b id="winCount">—</b><span>Windows in loaded history</span></div>
+    </div>
+    <div class="efig" id="efig"><svg id="esvg" role="img" aria-label="Edge of buying VHP over burning, over time"></svg><div class="etip" id="etip" hidden></div></div>
+    <div class="legend"><span><i class="lg-band"></i>Window at or above alert level</span><span><i class="lg-line"></i>Edge vs burning (below 0% not shown)</span><span><i class="lg-thr"></i>Alert level</span></div>
+  </div>
 </div>
 <div id="chart"></div>
 <section>
@@ -304,49 +323,87 @@ function arb(){
   edgeHistory();
 }
 
-// ---- edge history ----
+// ---- edge history (hand-drawn SVG) ----
 const thr=()=>{const v=parseFloat($('thr').value);return v>0?v:5;};
 try{const s=localStorage.getItem('vhpkoin-thr');if(s)$('thr').value=s;}catch(e){}
-const eChart=LightweightCharts.createChart($('edgeChart'),{
-  layout:{background:{color:'#171a20'},textColor:'#8a909c',fontFamily:'Geist, system-ui, sans-serif'},
-  grid:{vertLines:{visible:false},horzLines:{color:'#20242c'}},
-  rightPriceScale:{borderColor:'#262a33'},timeScale:{borderColor:'#262a33',timeVisible:true},
-  handleScroll:false,handleScale:false,autoSize:true
-});
-const eLine=eChart.addBaselineSeries({baseValue:{type:'price',price:5},topLineColor:'#26a69a',topFillColor1:'rgba(38,166,154,.35)',topFillColor2:'rgba(38,166,154,.05)',
-  bottomLineColor:'#5a6170',bottomFillColor1:'rgba(90,97,112,.05)',bottomFillColor2:'rgba(90,97,112,.15)',lineWidth:2,lineType:1,
-  priceFormat:{type:'custom',formatter:v=>v.toFixed(2)+'%'}});
-let thrLine=null;
-const dur=s=>s<90?Math.round(s)+'s':s<5400?Math.round(s/60)+' min':(s/3600).toFixed(1)+' h';
+const dur=s=>s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?(s/3600).toFixed(1)+' h':(s/86400).toFixed(1)+' days';
+let eData=[],eWins=[],eGeom=null;
 function edgeHistory(){
   if(!rows.length) return;
   const T=thr(), pts=new Map();
   for(const r of rows) if(r.a&&r.b) pts.set(r.t,(FEE*r.a/r.b-1)*100);
-  const data=[...pts].sort((x,y)=>x[0]-y[0]).map(([time,value])=>({time,value}));
-  eLine.applyOptions({baseValue:{type:'price',price:T}});
-  eLine.setData(data);
-  if(thrLine) eLine.removePriceLine(thrLine);
-  thrLine=eLine.createPriceLine({price:T,color:'#ff7a1a',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'alert'});
-  eChart.timeScale().fitContent();
-  // windows at/above threshold and how long they stayed open
-  const wins=[];let start=null;
-  for(const d of data){ if(d.value>=T){ if(start==null) start=d.time; } else if(start!=null){ wins.push(d.time-start); start=null; } }
-  const openFor=start!=null?Date.now()/1000-start:null;
-  const all=[...wins].sort((a,b)=>a-b);
-  $('winCount').textContent=String(wins.length+(openFor!=null?1:0));
-  $('winMed').textContent=all.length?dur(all[Math.floor(all.length/2)]):'—';
-  $('winRange').textContent=all.length?`${dur(all[0])} / ${dur(all[all.length-1])}`:'—';
-  $('winNow').textContent=openFor!=null?`Open for ${dur(openFor)}`:'Closed';
-  $('winNow').className=openFor!=null?'up':'';
+  eData=[...pts].sort((x,y)=>x[0]-y[0]).map(([t,v])=>({t,v}));
+  // windows at/above the alert level and how long each stayed open
+  eWins=[];let start=null;
+  for(const d of eData){ if(d.v>=T){ if(start==null) start=d.t; } else if(start!=null){ eWins.push([start,d.t]); start=null; } }
+  const now=Date.now()/1000;
+  if(start!=null) eWins.push([start,now,true]);
+  const closed=eWins.filter(w=>!w[2]).map(w=>w[1]-w[0]).sort((a,b)=>a-b);
+  const openW=eWins.find(w=>w[2]);
+  $('winCount').textContent=String(eWins.length);
+  $('winMed').textContent=closed.length?dur(closed[Math.floor(closed.length/2)]):'—';
+  $('winRange').textContent=closed.length?`${dur(closed[0])} – ${dur(closed[closed.length-1])}`:'—';
+  $('winNow').textContent=openW?`Open ${dur(now-openW[0])}`:'Closed';
+  $('winNow').className=openW?'up':'';
+  drawEdge();
 }
+function drawEdge(){
+  const svg=$('esvg'), W=svg.clientWidth, H=svg.clientHeight;
+  if(!W||!H||!eData.length) return;
+  const T=thr(), now=Date.now()/1000, narrow=W<520;
+  const L=narrow?34:44, R=8, Tp=8, B=22, w=W-L-R, h=H-Tp-B;
+  const t0=eData[0].t, t1=now;
+  const maxV=Math.max(T*1.6,...eData.map(d=>d.v));
+  const step=maxV>40?20:maxV>20?10:maxV>8?5:maxV>4?2:1;
+  const yMax=Math.ceil(maxV/step)*step;
+  const X=t=>L+(t-t0)/(t1-t0||1)*w, Y=v=>Tp+h-Math.max(0,Math.min(v,yMax))/yMax*h;
+  eGeom={X,Y,L,w,t0,t1};
+  let g='';
+  for(let v=0;v<=yMax;v+=step) g+=`<line x1="${L}" x2="${L+w}" y1="${Y(v)}" y2="${Y(v)}" stroke="#262a33"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#8a909c">${v}%</text>`;
+  // date ticks
+  const days=(t1-t0)/86400, every=days>60?14:days>21?7:days>7?2:1, nT=narrow?3:6;
+  const ticks=[];for(let i=0;i<=nT;i++)ticks.push(t0+(t1-t0)*i/nT);
+  for(const t of ticks){const d=new Date(t*1000);g+=`<text x="${X(t)}" y="${H-5}" text-anchor="middle" font-size="11" fill="#8a909c">${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</text>`;}
+  // window bands
+  let bands='';
+  for(const [a,b] of eWins){const x1=X(a),x2=Math.max(X(b),x1+2);bands+=`<rect x="${x1}" y="${Tp}" width="${x2-x1}" height="${h}" fill="rgba(38,166,154,.18)"/>`;}
+  // step line, floored at 0
+  let d=`M${X(eData[0].t)},${Y(eData[0].v)}`;
+  for(let i=1;i<eData.length;i++) d+=`H${X(eData[i].t)}V${Y(eData[i].v)}`;
+  d+=`H${X(now)}`;
+  const area=d+`V${Y(0)}H${X(eData[0].t)}Z`;
+  const thrY=Y(T);
+  svg.innerHTML=`<defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26a69a" stop-opacity=".28"/><stop offset="1" stop-color="#26a69a" stop-opacity="0"/></linearGradient></defs>
+    ${g}${bands}<path d="${area}" fill="url(#eg)"/><path d="${d}" fill="none" stroke="#26a69a" stroke-width="1.6" stroke-linejoin="round"/>
+    <line x1="${L}" x2="${L+w}" y1="${thrY}" y2="${thrY}" stroke="#ff7a1a" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="${L+w-4}" y="${thrY-6}" text-anchor="end" font-size="11" fill="#ff7a1a">${T}% alert</text>
+    <line id="ehair" x1="0" x2="0" y1="${Tp}" y2="${Tp+h}" stroke="#8a909c" stroke-width="1" visibility="hidden"/>`;
+}
+const efig=$('efig'), etip=$('etip');
+efig.addEventListener('pointermove',e=>{
+  if(!eGeom||!eData.length) return;
+  const r=efig.getBoundingClientRect(), x=e.clientX-r.left, {L,w,t0,t1}=eGeom;
+  if(x<L||x>L+w){etip.hidden=true;return;}
+  const t=t0+(x-L)/w*(t1-t0);
+  let i=eData.findIndex(d=>d.t>t);i=i<0?eData.length-1:Math.max(0,i-1);
+  const pt=eData[i], hair=$('ehair');
+  if(hair){hair.setAttribute('x1',x);hair.setAttribute('x2',x);hair.setAttribute('visibility','visible');}
+  etip.textContent=`${new Date(t*1000).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})} · ${pt.v>=0?'+':''}${pt.v.toFixed(2)}%`;
+  etip.hidden=false;
+  etip.style.left=Math.min(x+8,r.width-etip.offsetWidth-4)+'px';
+});
+efig.addEventListener('pointerleave',()=>{etip.hidden=true;const h=$('ehair');if(h)h.setAttribute('visibility','hidden');});
+const eRO=new ResizeObserver(drawEdge);eRO.observe($('esvg'));
 $('thr').addEventListener('input',()=>{try{localStorage.setItem('vhpkoin-thr',$('thr').value)}catch(e){};arb();});
 function calc(){
   const last=rows[rows.length-1]; if(!last||!last.a) return;
   const x=parseFloat($('amt').value);
-  if(!(x>0)){$('calcOut').textContent='—';return;}
+  if(!(x>0)){$('calcOut').textContent='—';$('calcDiff').textContent='—';$('calcRate').textContent='—';return;}
   const o=swapOut(last.b,last.a,x), d=o-x;
-  $('calcOut').textContent=`${n(o,4)} VHP (${d>=0?'+':''}${n(d,4)} vs burning, ${n(o/x,5)} per KOIN)`;
-  $('calcOut').className=d>=0?'up':'down';
+  $('calcOut').textContent=`${n(o,4)} VHP`;
+  $('calcDiff').textContent=`${d>=0?'+':''}${n(d,4)} VHP`;
+  $('calcDiff').className=d>=0?'up':'down';
+  $('calcRate').textContent=`${n(o/x,5)} VHP / KOIN`;
 }
 $('amt').addEventListener('input',calc);
 $('calc').addEventListener('submit',e=>{e.preventDefault();calc();});
