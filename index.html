@@ -50,6 +50,9 @@ a{color:var(--acc)}
 .calc input{width:140px;font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--ink);min-height:40px}
 .calc input:focus-visible{outline:2px solid var(--acc)}
 .calc button{background:#232733;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:40px}
+#edgeChart{height:180px;border-radius:6px;overflow:hidden}
+.thr{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);margin-bottom:8px}
+.thr input{width:80px;font:inherit;font-size:16px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--ink);min-height:36px}
 .note{font-size:12px;color:var(--mute);margin:10px 0 0}
 </style>
 </head>
@@ -87,14 +90,14 @@ a{color:var(--acc)}
       </div>
     </div>
     <div class="card">
-      <h3>Burn KOIN → VHP, then sell VHP in the pool</h3>
-      <div class="big" id="sellBig">—</div>
-      <div class="kv">
-        <span>KOIN back per VHP on a tiny swap</span><b id="sellRate">—</b>
-        <span>Best amount of KOIN to burn</span><b id="sellBest">—</b>
-        <span>KOIN you get back</span><b id="sellOut">—</b>
-        <span>Profit in KOIN</span><b id="sellGain">—</b>
-        <span>Pool price needed to open</span><b id="sellNeed">—</b>
+      <h3>Edge history: how long windows stay open</h3>
+      <div class="thr"><label for="thr">Alert level</label><input id="thr" type="number" inputmode="decimal" min="0.1" step="0.5" value="5"><span>% over burning</span></div>
+      <div id="edgeChart"></div>
+      <div class="kv" style="margin-top:8px">
+        <span>Windows at or above the alert level (loaded history)</span><b id="winCount">—</b>
+        <span>Typical (median) time open</span><b id="winMed">—</b>
+        <span>Shortest / longest</span><b id="winRange">—</b>
+        <span>Current window</span><b id="winNow">—</b>
       </div>
     </div>
   </div>
@@ -278,7 +281,7 @@ const swapOut=(rin,rout,x)=>rout*FEE*x/(rin+FEE*x);
 // best x maximises out(x)-x  =>  rin+FEE*x = sqrt(rin*rout*FEE)
 const bestSize=(rin,rout)=>Math.max(0,(Math.sqrt(rin*rout*FEE)-rin)/FEE);
 const breakEven=(rin,rout)=>Math.max(0,(rout*FEE-rin)/FEE);
-let bestBuy=0,bestSell=0;
+let bestBuy=0;
 function arb(){
   const last=rows[rows.length-1]; if(!last||!last.a||!last.b) return;
   const V=last.a, K=last.b, usd=v=>koinUsd?` ($${n(v*koinUsd,2)})`:'';
@@ -294,21 +297,49 @@ function arb(){
   $('buyGain').textContent=buyOpen?'+'+n(bg,2)+' VHP'+usd(bg):'—';
   $('buyAvg').textContent=buyOpen?n(bo/bx,5)+' VHP / KOIN':'—';
   $('buyBE').textContent=buyOpen?n(breakEven(K,V),2)+' KOIN':'—';
-  // burn KOIN -> VHP, sell VHP for KOIN in pool
-  const sellRate=FEE*K/V, sx=bestSize(V,K), so=swapOut(V,K,sx), sg=so-sx;
-  bestSell=sx;
-  const sellOpen=sellRate>1;
-  $('sellRate').textContent=n(sellRate,5)+' KOIN / VHP';
-  $('sellBig').textContent=sellOpen?`+${((sellRate-1)*100).toFixed(3)}% profit`:`Closed (${((sellRate-1)*100).toFixed(3)}%)`;
-  $('sellBig').className='big '+(sellOpen?'up':'down');
-  $('sellBest').textContent=sellOpen?n(sx,2)+' KOIN':'—';
-  $('sellOut').textContent=sellOpen?n(so,2)+' KOIN':'—';
-  $('sellGain').textContent=sellOpen?'+'+n(sg,2)+' KOIN'+usd(sg):'—';
-  $('sellNeed').textContent=n(1/FEE,5)+' KOIN per VHP (now '+n(K/V,5)+')';
-  $('arbTitle').textContent=buyOpen?'Buying VHP in the pool beats burning right now':sellOpen?'Burn-and-sell is profitable right now':'No edge right now: the pool is within the fee of 1:1';
-  $('arb').classList.toggle('live',buyOpen||sellOpen);
+  const edge=(buyRate-1)*100;
+  $('arbTitle').textContent=edge>=thr()?`Buying VHP beats burning by ${edge.toFixed(2)}%, above your ${thr()}% alert level`:buyOpen?'Buying VHP in the pool beats burning right now':'No edge right now: burning is as good or better';
+  $('arb').classList.toggle('live',edge>=thr());
   calc();
+  edgeHistory();
 }
+
+// ---- edge history ----
+const thr=()=>{const v=parseFloat($('thr').value);return v>0?v:5;};
+try{const s=localStorage.getItem('vhpkoin-thr');if(s)$('thr').value=s;}catch(e){}
+const eChart=LightweightCharts.createChart($('edgeChart'),{
+  layout:{background:{color:'#171a20'},textColor:'#8a909c',fontFamily:'Geist, system-ui, sans-serif'},
+  grid:{vertLines:{visible:false},horzLines:{color:'#20242c'}},
+  rightPriceScale:{borderColor:'#262a33'},timeScale:{borderColor:'#262a33',timeVisible:true},
+  handleScroll:false,handleScale:false,autoSize:true
+});
+const eLine=eChart.addBaselineSeries({baseValue:{type:'price',price:5},topLineColor:'#26a69a',topFillColor1:'rgba(38,166,154,.35)',topFillColor2:'rgba(38,166,154,.05)',
+  bottomLineColor:'#5a6170',bottomFillColor1:'rgba(90,97,112,.05)',bottomFillColor2:'rgba(90,97,112,.15)',lineWidth:2,lineType:1,
+  priceFormat:{type:'custom',formatter:v=>v.toFixed(2)+'%'}});
+let thrLine=null;
+const dur=s=>s<90?Math.round(s)+'s':s<5400?Math.round(s/60)+' min':(s/3600).toFixed(1)+' h';
+function edgeHistory(){
+  if(!rows.length) return;
+  const T=thr(), pts=new Map();
+  for(const r of rows) if(r.a&&r.b) pts.set(r.t,(FEE*r.a/r.b-1)*100);
+  const data=[...pts].sort((x,y)=>x[0]-y[0]).map(([time,value])=>({time,value}));
+  eLine.applyOptions({baseValue:{type:'price',price:T}});
+  eLine.setData(data);
+  if(thrLine) eLine.removePriceLine(thrLine);
+  thrLine=eLine.createPriceLine({price:T,color:'#ff7a1a',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'alert'});
+  eChart.timeScale().fitContent();
+  // windows at/above threshold and how long they stayed open
+  const wins=[];let start=null;
+  for(const d of data){ if(d.value>=T){ if(start==null) start=d.time; } else if(start!=null){ wins.push(d.time-start); start=null; } }
+  const openFor=start!=null?Date.now()/1000-start:null;
+  const all=[...wins].sort((a,b)=>a-b);
+  $('winCount').textContent=String(wins.length+(openFor!=null?1:0));
+  $('winMed').textContent=all.length?dur(all[Math.floor(all.length/2)]):'—';
+  $('winRange').textContent=all.length?`${dur(all[0])} / ${dur(all[all.length-1])}`:'—';
+  $('winNow').textContent=openFor!=null?`Open for ${dur(openFor)}`:'Closed';
+  $('winNow').className=openFor!=null?'up':'';
+}
+$('thr').addEventListener('input',()=>{try{localStorage.setItem('vhpkoin-thr',$('thr').value)}catch(e){};arb();});
 function calc(){
   const last=rows[rows.length-1]; if(!last||!last.a) return;
   const x=parseFloat($('amt').value);
@@ -319,7 +350,7 @@ function calc(){
 }
 $('amt').addEventListener('input',calc);
 $('calc').addEventListener('submit',e=>{e.preventDefault();calc();});
-$('useBest').addEventListener('click',()=>{const x=bestBuy>0?bestBuy:bestSell;if(x>0){$('amt').value=x.toFixed(2);calc();}});
+$('useBest').addEventListener('click',()=>{const x=bestBuy;if(x>0){$('amt').value=x.toFixed(2);calc();}});
 
 async function getUsd(){try{const r=await rpc('chain.read_contract',{contract_id:USDT_POOL,entry_point:0x6d0c5abf,args:''});
   const d=pb(b64(r.result));const k=Number(d[2]||0n),u=Number(d[3]||0n);koinUsd=k&&u?u/k:null;}catch(e){}}

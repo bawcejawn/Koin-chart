@@ -1,0 +1,64 @@
+name: VHP edge alert
+
+# Every 5 minutes (GitHub may run it a few minutes late), check whether buying VHP
+# in the KoinDX pool beats burning KOIN 1:1 by at least THRESHOLD_PCT.
+# Window opens  -> opens an issue assigned to the repo owner (GitHub emails it).
+# Window closes -> closes that issue with how long it stayed open.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: vhp-alert
+  cancel-in-progress: false
+
+env:
+  THRESHOLD_PCT: '5'
+  ALERT_LABEL: vhp-alert
+  NOTIFY_USER: bawcejawn
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Read pool
+        id: pool
+        run: node scripts/check-edge.mjs
+
+      - name: Open or close alert issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EDGE: ${{ steps.pool.outputs.edge }}
+          OPEN: ${{ steps.pool.outputs.open }}
+          SUMMARY: ${{ steps.pool.outputs.summary }}
+        run: |
+          gh label create "$ALERT_LABEL" --color 26a69a --description "VHP buy edge alert" 2>/dev/null || true
+          existing=$(gh issue list --label "$ALERT_LABEL" --state open --json number,createdAt --jq '.[0] | select(.) | "\(.number) \(.createdAt)"')
+          page="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+
+          if [ "$OPEN" = "true" ] && [ -z "$existing" ]; then
+            body=$(printf '@%s buying VHP in the pool now beats burning by **%s%%** (alert level %s%%).\n\n%s\n\nLive page: %s\n\nThis issue will close automatically when the edge drops back below %s%%.' \
+              "$NOTIFY_USER" "$EDGE" "$THRESHOLD_PCT" "$SUMMARY" "$page" "$THRESHOLD_PCT")
+            gh issue create --title "VHP buy edge +${EDGE}% vs burning" --label "$ALERT_LABEL" --assignee "$NOTIFY_USER" --body "$body"
+            echo "Alert opened."
+          elif [ "$OPEN" != "true" ] && [ -n "$existing" ]; then
+            num=${existing%% *}; created=${existing#* }
+            mins=$(( ( $(date -u +%s) - $(date -u -d "$created" +%s) ) / 60 ))
+            gh issue close "$num" --comment "Window closed: edge is back to ${EDGE}%. It stayed above ${THRESHOLD_PCT}% for about ${mins} minutes (measured on 5-minute checks)."
+            echo "Alert closed after ~${mins} min."
+          else
+            echo "No change (edge ${EDGE}%, alert open: ${existing:-no})."
+          fi
