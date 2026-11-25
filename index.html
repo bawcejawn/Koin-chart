@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VHP/KOIN Chart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{--bg:#0f1115;--panel:#171a20;--line:#262a33;--ink:#e8eaee;--mute:#8a909c;--up:#26a69a;--down:#ef5350;--acc:#ff7a1a}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Geist,system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:flex-end;padding:18px max(3vw,14px) 10px}
+h1{margin:0;font-size:26px;line-height:1.1;font-weight:700}
+h1 small{display:block;font-size:13px;color:var(--mute);font-weight:400;margin-top:4px}
+.stat{display:flex;flex-direction:column}
+.stat b{font-size:22px;font-weight:500;white-space:nowrap}
+.stat span{font-size:12px;color:var(--mute)}
+.up{color:var(--up)}.down{color:var(--down)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px max(3vw,14px) 10px}
+.grp{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.grp button{background:var(--panel);color:var(--mute);border:0;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:36px}
+.grp button+button{border-left:1px solid var(--line)}
+.grp button.on{color:var(--ink);background:#232733}
+.grp button:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+#status{font-size:12px;color:var(--mute);margin-left:auto}
+#chart{height:min(62vh,560px);margin:0 max(3vw,14px);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+section{padding:16px max(3vw,14px) 30px}
+h2{font-size:15px;margin:0 0 8px;font-weight:500;color:var(--mute)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mute);font-weight:400}
+a{color:var(--acc)}
+.foot{font-size:12px;color:var(--mute);padding:0 max(3vw,14px) 24px}
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="pairName">VHP / KOIN</span><small>KoinDX pool · 1NqLghiFRwkXZR7NBFHHiCJkF5gLHyJap1</small></h1>
+  <div class="stat"><b id="price">—</b><span id="priceLbl">KOIN per VHP</span></div>
+  <div class="stat"><b id="chg">—</b><span>24h change</span></div>
+  <div class="stat"><b id="vol">—</b><span>24h volume (KOIN)</span></div>
+  <div class="stat"><b id="usd">—</b><span id="usdLbl">≈ USD (via KoinDX KOIN/USDT)</span></div>
+  <div class="stat"><b id="res">—</b><span>Reserves VHP / KOIN</span></div>
+</header>
+<div class="bar">
+  <div class="grp" id="tf">
+    <button data-v="900">15m</button><button data-v="3600" class="on">1h</button><button data-v="14400">4h</button><button data-v="86400">1D</button>
+  </div>
+  <div class="grp" id="mode"><button data-v="candle" class="on">Candles</button><button data-v="line">Line</button></div>
+  <div class="grp" id="inv"><button data-v="0" class="on">KOIN per VHP</button><button data-v="1">VHP per KOIN</button></div>
+  <div class="grp"><button id="more">Load older trades</button><button id="reload">Refresh</button></div>
+  <span id="status">Loading…</span>
+</div>
+<div id="chart"></div>
+<section>
+  <h2>Latest pool updates</h2>
+  <div class="scroll"><table><thead><tr><th>Time</th><th>Type</th><th>Price</th><th>KOIN Δ</th><th>VHP Δ</th><th>Tx</th></tr></thead><tbody id="trades"></tbody></table></div>
+</section>
+<p class="foot">Data comes live from the public Koinos RPC (api.koinos.io), read from the pool's on-chain sync events. Recent history is cached in this browser so reopening it is fast. It auto-refreshes every 30 seconds. Informational only.</p>
+
+<script>
+{
+const PAIR='1NqLghiFRwkXZR7NBFHHiCJkF5gLHyJap1';
+const RPC='https://api.koinos.io';
+const PAGE=100, CACHE_KEY='vhpkoin-cache-v1';
+let rows=[];            // {seq,id,t,a,b,swap} a=VHP reserve, b=KOIN reserve (raw 8-dec)
+let oldestSeq=null, tf=3600, mode='candle', inv=false, koinUsd=null, busy=false;
+
+const $=id=>document.getElementById(id);
+const status=s=>$('status').textContent=s;
+const rpc=async(m,p,tries=3)=>{
+  for(let k=0;k<tries;k++){
+    try{const r=await fetch(RPC,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:m,params:p})});
+      const j=await r.json(); if(j.error) throw new Error(j.error.data||j.error.message); return j.result;}
+    catch(e){ if(k===tries-1) throw e; await new Promise(r=>setTimeout(r,800*(k+1))); }
+  }
+};
+const b64=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+const pb=u=>{const o={};let i=0;const vr=()=>{let r=0n,s=0n,b;do{b=u[i++];r|=BigInt(b&127)<<s;s+=7n}while(b&128);return r};
+  while(i<u.length){const k=Number(vr()),f=k>>3,t=k&7;if(t===0)o[f]=vr();else if(t===2){const l=Number(vr());o[f]=u.slice(i,i+l);i+=l}else break}return o};
+
+function parse(values){
+  const out=[];
+  for(const v of values){
+    if(!v.trx) continue;
+    const ev=(v.trx.receipt?.events||[]).filter(e=>e.source===PAIR);
+    const syncs=ev.filter(e=>e.name==='core.sync_event');
+    if(!syncs.length) continue;
+    const d=pb(b64(syncs[syncs.length-1].data));
+    const kind=ev.some(e=>e.name==='core.swap_event')?'Swap':ev.some(e=>e.name==='core.mint_event')?'Add liq.':ev.some(e=>e.name==='core.burn_event')?'Remove liq.':'Sync';
+    out.push({seq:+v.seq_num,id:v.trx.transaction.id,a:Number(d[1]||0n)/1e8,b:Number(d[2]||0n)/1e8,kind,t:null});
+  }
+  return out;
+}
+
+async function addTimes(list){
+  const need=list.filter(r=>!r.t);
+  for(let i=0;i<need.length;i+=50){
+    const chunk=need.slice(i,i+50);
+    const tx=await rpc('transaction_store.get_transactions_by_id',{transaction_ids:chunk.map(r=>r.id)});
+    const blkOf={};
+    (tx.transactions||[]).forEach((t,k)=>{const id=t.transaction?.id||chunk[k].id;blkOf[id]=t.containing_blocks?.[0];});
+    const bids=[...new Set(Object.values(blkOf).filter(Boolean))];
+    if(!bids.length) continue;
+    const bl=await rpc('block_store.get_blocks_by_id',{block_ids:bids,return_block:true,return_receipt:false});
+    const tsOf={};
+    for(const b of bl.block_items||[]) tsOf[b.block_id]=Number(b.block?.header?.timestamp||0);
+    for(const r of chunk){const ts=tsOf[blkOf[r.id]]; if(ts) r.t=Math.floor(ts/1000);}
+  }
+}
+
+async function fetchPage(beforeSeq){
+  const p={address:PAIR,limit:PAGE,ascending:false,irreversible:false};
+  if(beforeSeq!=null) p.seq_num=String(beforeSeq);
+  const h=await rpc('account_history.get_account_history',p);
+  return h.values||[];
+}
+
+function save(){try{localStorage.setItem(CACHE_KEY,JSON.stringify(rows.slice(-6000)))}catch(e){}}
+function load(){try{const r=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]');if(Array.isArray(r))rows=r.filter(x=>x.t)}catch(e){rows=[]}}
+function merge(list){
+  const m=new Map(rows.map(r=>[r.seq,r]));
+  for(const r of list) if(r.t) m.set(r.seq,r);
+  rows=[...m.values()].sort((x,y)=>x.seq-y.seq);
+  oldestSeq=rows.length?rows[0].seq:oldestSeq;
+}
+
+async function loadOlder(pages){
+  for(let p=0;p<pages;p++){
+    const start=oldestSeq!=null?oldestSeq-1:null;
+    if(start!=null&&start<0){status('Reached the start of the pool history');return;}
+    status(`Loading older trades… (${rows.length} loaded)`);
+    const vals=await fetchPage(start);
+    if(!vals.length) return;
+    const list=parse(vals); await addTimes(list); merge(list);
+    const minSeq=Math.min(...vals.map(v=>+v.seq_num));
+    oldestSeq=Math.min(oldestSeq??minSeq,minSeq);
+    render();
+  }
+}
+
+async function loadNew(){
+  const newest=rows.length?rows[rows.length-1].seq:-1;
+  let start=null, got=[];
+  for(let p=0;p<20;p++){
+    const vals=await fetchPage(start);
+    if(!vals.length) break;
+    got.push(...parse(vals));
+    const minSeq=Math.min(...vals.map(v=>+v.seq_num));
+    if(minSeq<=newest||newest<0) break;
+    start=minSeq-1;
+  }
+  got=got.filter(r=>r.seq>newest);
+  if(got.length){await addTimes(got);merge(got);}
+}
+
+// ---- chart ----
+const el=$('chart');
+const chart=LightweightCharts.createChart(el,{
+  layout:{background:{color:'#171a20'},textColor:'#8a909c',fontFamily:'Geist, system-ui, sans-serif'},
+  grid:{vertLines:{color:'#20242c'},horzLines:{color:'#20242c'}},
+  rightPriceScale:{borderColor:'#262a33'},
+  timeScale:{borderColor:'#262a33',timeVisible:true,secondsVisible:false},
+  crosshair:{mode:0},autoSize:true
+});
+const fmt={type:'price',precision:6,minMove:0.000001};
+const candles=chart.addCandlestickSeries({upColor:'#26a69a',downColor:'#ef5350',borderVisible:false,wickUpColor:'#26a69a',wickDownColor:'#ef5350',priceFormat:fmt});
+const line=chart.addLineSeries({color:'#ff7a1a',lineWidth:2,priceFormat:fmt,visible:false});
+const vol=chart.addHistogramSeries({priceScaleId:'vol',priceFormat:{type:'volume'},color:'#2a3140'});
+chart.priceScale('vol').applyOptions({scaleMargins:{top:0.8,bottom:0}});
+
+const px=r=>{const p=r.b/r.a;return inv?1/p:p};
+const n=(x,d=4)=>x.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:Math.min(d,2)});
+
+function render(){
+  if(!rows.length) return;
+  const bars=new Map(); let prev=null;
+  for(const r of rows){
+    if(!r.a||!r.b) {prev=r;continue;}
+    const p=px(r), k=Math.floor(r.t/tf)*tf;
+    const dK=prev&&r.kind==='Swap'?Math.abs(r.b-prev.b):0;
+    let c=bars.get(k);
+    if(!c){const o=prev&&prev.a&&prev.b?px(prev):p;c={time:k,open:o,high:Math.max(o,p),low:Math.min(o,p),close:p,v:0};bars.set(k,c);}
+    c.high=Math.max(c.high,p);c.low=Math.min(c.low,p);c.close=p;c.v+=dK;
+    prev=r;
+  }
+  const arr=[...bars.values()].sort((x,y)=>x.time-y.time);
+  candles.setData(arr.map(({time,open,high,low,close})=>({time,open,high,low,close})));
+  line.setData(arr.map(c=>({time:c.time,value:c.close})));
+  vol.setData(arr.map(c=>({time:c.time,value:c.v,color:c.close>=c.open?'rgba(38,166,154,.35)':'rgba(239,83,80,.35)'})));
+  candles.applyOptions({visible:mode==='candle'});line.applyOptions({visible:mode==='line'});
+
+  const last=rows[rows.length-1], p=px(last);
+  $('price').textContent=n(p,6);
+  $('priceLbl').textContent=inv?'VHP per KOIN':'KOIN per VHP';
+  $('res').textContent=`${n(last.a,0)} / ${n(last.b,0)}`;
+  const now=Date.now()/1000, dayAgo=rows.filter(r=>r.t<=now-86400).pop();
+  if(dayAgo){const c=(p/px(dayAgo)-1)*100;$('chg').textContent=(c>=0?'+':'')+c.toFixed(2)+'%';$('chg').className=c>=0?'up':'down';}
+  else $('chg').textContent='—';
+  let v=0;for(let i=1;i<rows.length;i++){const r=rows[i];if(r.t>now-86400&&r.kind==='Swap')v+=Math.abs(r.b-rows[i-1].b);}
+  $('vol').textContent=n(v,0);
+  const vhpKoin=last.b/last.a;
+  $('usd').textContent=koinUsd?`VHP $${n(vhpKoin*koinUsd,5)}`:'—';
+  $('usdLbl').textContent=koinUsd?`≈ USD · KOIN $${n(koinUsd,5)} (KoinDX)`:'≈ USD (via KoinDX KOIN/USDT)';
+
+  const tb=[];
+  for(let i=rows.length-1;i>=Math.max(1,rows.length-40);i--){
+    const r=rows[i],q=rows[i-1],dK=r.b-q.b,dV=r.a-q.a;
+    const id=String(r.id);
+    tb.push(`<tr><td>${new Date(r.t*1000).toLocaleString()}</td><td>${r.kind}</td><td>${n(px(r),6)}</td><td class="${dK>=0?'up':'down'}">${(dK>=0?'+':'')+n(dK,2)}</td><td class="${dV>=0?'up':'down'}">${(dV>=0?'+':'')+n(dV,2)}</td><td><a href="https://koinosblocks.com/tx/${encodeURIComponent(id)}" target="_blank" rel="noopener">${id.slice(6,14)}…</a></td></tr>`);
+  }
+  $('trades').innerHTML=tb.join('');
+  const first=rows[0];
+  status(`${rows.length} pool updates since ${new Date(first.t*1000).toLocaleDateString()} · updated ${new Date().toLocaleTimeString()}`);
+}
+
+// KOIN/USD from the KoinDX KOIN/vUSDT pool (both 8 decimals): get_reserves -> field 2 = KOIN, field 3 = vUSDT
+const USDT_POOL='1E8AjPZxKLJGFouXtNNkPcYxAgsTh4AUTN';
+async function getUsd(){try{const r=await rpc('chain.read_contract',{contract_id:USDT_POOL,entry_point:0x6d0c5abf,args:''});
+  const d=pb(b64(r.result));const k=Number(d[2]||0n),u=Number(d[3]||0n);koinUsd=k&&u?u/k:null;}catch(e){}}
+
+async function refresh(){
+  if(busy) return; busy=true;
+  try{await loadNew();render();save();}
+  catch(e){status('Refresh failed: '+e.message+' (will retry)');}
+  busy=false;
+}
+
+function group(id,fn){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  for(const x of $(id).children)x.classList.toggle('on',x===b);fn(b.dataset.v);});}
+group('tf',v=>{tf=+v;render();try{localStorage.setItem('vhpkoin-tf',v)}catch(e){}});
+group('mode',v=>{mode=v;render();});
+group('inv',v=>{inv=v==='1';render();});
+$('more').addEventListener('click',async()=>{if(busy)return;busy=true;try{await loadOlder(5);save();}catch(e){status('Load failed: '+e.message);}busy=false;render();});
+$('reload').addEventListener('click',refresh);
+
+(async()=>{
+  try{const s=localStorage.getItem('vhpkoin-tf');if(s){tf=+s;for(const x of $('tf').children)x.classList.toggle('on',x.dataset.v===s);}}catch(e){}
+  load(); if(rows.length){oldestSeq=rows[0].seq;render();}
+  getUsd().then(render);
+  busy=true;
+  try{
+    await loadNew();
+    if(rows.length<800) await loadOlder(Math.ceil((800-rows.length)/PAGE));
+    render();save();chart.timeScale().fitContent();
+  }catch(e){status('Could not reach Koinos RPC: '+e.message);}
+  busy=false;
+  setInterval(refresh,30000);
+  setInterval(()=>getUsd().then(render),300000);
+})();
+}
+</script>
+</body>
+</html>
