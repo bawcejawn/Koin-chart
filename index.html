@@ -35,6 +35,22 @@ th:first-child,td:first-child{text-align:left}
 th{color:var(--mute);font-weight:400}
 a{color:var(--acc)}
 .foot{font-size:12px;color:var(--mute);padding:0 max(3vw,14px) 24px}
+.arb{margin:0 max(3vw,14px) 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px 16px}
+.arb.live{border-color:var(--up);box-shadow:0 0 0 1px var(--up) inset}
+.arbHead{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:10px}
+.arbHead b{font-size:18px;font-weight:500}
+.arbHead span{font-size:13px;color:var(--mute)}
+.arbGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+.card{border:1px solid var(--line);border-radius:8px;padding:12px}
+.card h3{margin:0 0 8px;font-size:14px;font-weight:500}
+.kv{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px}
+.kv span{color:var(--mute)}.kv b{font-weight:500;text-align:right;white-space:nowrap}
+.big{font-size:22px;font-weight:500;margin:2px 0 8px;white-space:nowrap}
+.calc{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-size:13px}
+.calc input{width:140px;font:inherit;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--ink);min-height:40px}
+.calc input:focus-visible{outline:2px solid var(--acc)}
+.calc button{background:#232733;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:40px}
+.note{font-size:12px;color:var(--mute);margin:10px 0 0}
 </style>
 </head>
 <body>
@@ -54,6 +70,41 @@ a{color:var(--acc)}
   <div class="grp" id="inv"><button data-v="0" class="on">KOIN per VHP</button><button data-v="1">VHP per KOIN</button></div>
   <div class="grp"><button id="more">Load older trades</button><button id="reload">Refresh</button></div>
   <span id="status">Loading…</span>
+</div>
+<div class="arb" id="arb">
+  <div class="arbHead"><b id="arbTitle">Arb vs burning: checking…</b><span id="arbSub">Burning gives exactly 1 VHP per 1 KOIN. The pool charges a 0.25% fee per swap.</span></div>
+  <div class="arbGrid">
+    <div class="card">
+      <h3>Buy VHP in the pool instead of burning</h3>
+      <div class="big" id="buyBig">—</div>
+      <div class="kv">
+        <span>Rate on a tiny swap (after fee)</span><b id="buyRate">—</b>
+        <span>Best amount of KOIN to swap</span><b id="buyBest">—</b>
+        <span>VHP you get back at that amount</span><b id="buyOut">—</b>
+        <span>Extra VHP vs burning</span><b id="buyGain">—</b>
+        <span>Average rate at that amount</span><b id="buyAvg">—</b>
+        <span>Break-even size (no gain above this)</span><b id="buyBE">—</b>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Burn KOIN → VHP, then sell VHP in the pool</h3>
+      <div class="big" id="sellBig">—</div>
+      <div class="kv">
+        <span>KOIN back per VHP on a tiny swap</span><b id="sellRate">—</b>
+        <span>Best amount of KOIN to burn</span><b id="sellBest">—</b>
+        <span>KOIN you get back</span><b id="sellOut">—</b>
+        <span>Profit in KOIN</span><b id="sellGain">—</b>
+        <span>Pool price needed to open</span><b id="sellNeed">—</b>
+      </div>
+    </div>
+  </div>
+  <form class="calc" id="calc">
+    <label for="amt">Try an amount:</label>
+    <input id="amt" type="number" inputmode="decimal" min="0" step="any" value="100">
+    <span>KOIN →</span><b id="calcOut">—</b>
+    <button type="button" id="useBest">Use best amount</button>
+  </form>
+  <p class="note">"Best amount" is the swap size that gives you the most extra VHP in total. Smaller swaps get a better rate per KOIN but less extra VHP overall. Above the best amount, each additional KOIN buys less than 1 extra VHP. This assumes your swap is the next one in the pool. Figures update with every pool change, so check again right before you trade.</p>
 </div>
 <div id="chart"></div>
 <section>
@@ -215,11 +266,61 @@ function render(){
   }
   $('trades').innerHTML=tb.join('');
   const first=rows[0];
+  arb();
   status(`${rows.length} pool updates since ${new Date(first.t*1000).toLocaleDateString()} · updated ${new Date().toLocaleTimeString()}`);
 }
 
 // KOIN/USD from the KoinDX KOIN/vUSDT pool (both 8 decimals): get_reserves -> field 2 = KOIN, field 3 = vUSDT
 const USDT_POOL='1E8AjPZxKLJGFouXtNNkPcYxAgsTh4AUTN';
+// ---- arbitrage vs burning (burn: 1 KOIN -> 1 VHP) ----
+const FEE=0.9975;
+const swapOut=(rin,rout,x)=>rout*FEE*x/(rin+FEE*x);
+// best x maximises out(x)-x  =>  rin+FEE*x = sqrt(rin*rout*FEE)
+const bestSize=(rin,rout)=>Math.max(0,(Math.sqrt(rin*rout*FEE)-rin)/FEE);
+const breakEven=(rin,rout)=>Math.max(0,(rout*FEE-rin)/FEE);
+let bestBuy=0,bestSell=0;
+function arb(){
+  const last=rows[rows.length-1]; if(!last||!last.a||!last.b) return;
+  const V=last.a, K=last.b, usd=v=>koinUsd?` ($${n(v*koinUsd,2)})`:'';
+  // buy VHP with KOIN in pool
+  const buyRate=FEE*V/K, bx=bestSize(K,V), bo=swapOut(K,V,bx), bg=bo-bx;
+  bestBuy=bx;
+  const buyOpen=buyRate>1;
+  $('buyRate').textContent=n(buyRate,5)+' VHP / KOIN';
+  $('buyBig').textContent=buyOpen?`+${((buyRate-1)*100).toFixed(3)}% vs burning`:`${((buyRate-1)*100).toFixed(3)}%: burning is better`;
+  $('buyBig').className='big '+(buyOpen?'up':'down');
+  $('buyBest').textContent=buyOpen?n(bx,2)+' KOIN':'—';
+  $('buyOut').textContent=buyOpen?n(bo,2)+' VHP':'—';
+  $('buyGain').textContent=buyOpen?'+'+n(bg,2)+' VHP'+usd(bg):'—';
+  $('buyAvg').textContent=buyOpen?n(bo/bx,5)+' VHP / KOIN':'—';
+  $('buyBE').textContent=buyOpen?n(breakEven(K,V),2)+' KOIN':'—';
+  // burn KOIN -> VHP, sell VHP for KOIN in pool
+  const sellRate=FEE*K/V, sx=bestSize(V,K), so=swapOut(V,K,sx), sg=so-sx;
+  bestSell=sx;
+  const sellOpen=sellRate>1;
+  $('sellRate').textContent=n(sellRate,5)+' KOIN / VHP';
+  $('sellBig').textContent=sellOpen?`+${((sellRate-1)*100).toFixed(3)}% profit`:`Closed (${((sellRate-1)*100).toFixed(3)}%)`;
+  $('sellBig').className='big '+(sellOpen?'up':'down');
+  $('sellBest').textContent=sellOpen?n(sx,2)+' KOIN':'—';
+  $('sellOut').textContent=sellOpen?n(so,2)+' KOIN':'—';
+  $('sellGain').textContent=sellOpen?'+'+n(sg,2)+' KOIN'+usd(sg):'—';
+  $('sellNeed').textContent=n(1/FEE,5)+' KOIN per VHP (now '+n(K/V,5)+')';
+  $('arbTitle').textContent=buyOpen?'Buying VHP in the pool beats burning right now':sellOpen?'Burn-and-sell is profitable right now':'No edge right now: the pool is within the fee of 1:1';
+  $('arb').classList.toggle('live',buyOpen||sellOpen);
+  calc();
+}
+function calc(){
+  const last=rows[rows.length-1]; if(!last||!last.a) return;
+  const x=parseFloat($('amt').value);
+  if(!(x>0)){$('calcOut').textContent='—';return;}
+  const o=swapOut(last.b,last.a,x), d=o-x;
+  $('calcOut').textContent=`${n(o,4)} VHP (${d>=0?'+':''}${n(d,4)} vs burning, ${n(o/x,5)} per KOIN)`;
+  $('calcOut').className=d>=0?'up':'down';
+}
+$('amt').addEventListener('input',calc);
+$('calc').addEventListener('submit',e=>{e.preventDefault();calc();});
+$('useBest').addEventListener('click',()=>{const x=bestBuy>0?bestBuy:bestSell;if(x>0){$('amt').value=x.toFixed(2);calc();}});
+
 async function getUsd(){try{const r=await rpc('chain.read_contract',{contract_id:USDT_POOL,entry_point:0x6d0c5abf,args:''});
   const d=pb(b64(r.result));const k=Number(d[2]||0n),u=Number(d[3]||0n);koinUsd=k&&u?u/k:null;}catch(e){}}
 
