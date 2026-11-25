@@ -387,8 +387,12 @@ function drawEdge(){
   // clipped spikes: mark the highest one in each window
   let marks='';
   if(maxV>yMax){
-    for(const [a,b] of eWins){let pk=null;for(const p of eData)if(p.t>=a&&p.t<=b&&p.v>yMax&&(!pk||p.v>pk.v))pk=p;
-      if(pk){const x=X(pk.t);marks+=`<path d="M${x-4},${Tp+6}L${x},${Tp-1}L${x+4},${Tp+6}Z" fill="#26a69a"/><text x="${x+7}" y="${Tp+6}" font-size="11" fill="#e8eaee">${pk.v.toFixed(0)}%</text>`;}}
+    const pks=[];
+    for(const [a,b] of eWins){let pk=null;for(const p of eData)if(p.t>=a&&p.t<=b&&p.v>yMax&&(!pk||p.v>pk.v))pk=p;if(pk)pks.push(pk);}
+    const placed=[];
+    for(const pk of pks.sort((x,y)=>y.v-x.v)){const x=X(pk.t);if(placed.some(px=>Math.abs(px-x)<44))continue;placed.push(x);
+      const right=x+40<L+w;
+      marks+=`<path d="M${x-4},${Tp+6}L${x},${Tp-1}L${x+4},${Tp+6}Z" fill="#2fd1c0"/><text x="${right?x+7:x-7}" y="${Tp+6}" text-anchor="${right?'start':'end'}" font-size="11" fill="#e8eaee">${pk.v.toFixed(0)}%</text>`;}
   }
   // window strip with durations
   const ly=Tp+h+8;
