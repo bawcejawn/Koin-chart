@@ -288,7 +288,7 @@ body.txbusy .btn.primary{cursor:progress}
   <div class="secHead"><h2>Cross-chain price gaps</h2><p>Bridged KOIN (vKOIN) trades on Ethereum, Base and Solana. When its price drifts from native KOIN (<b id="xNative">—</b> on KoinDX), there's a gap you can capture by bridging with <a href="https://vortexbridge.io" target="_blank" rel="noopener">Vortex</a>. This section is a monitor only.</p></div>
   <div class="panel">
     <p class="headline" id="xHeadline">Loading…</p>
-    <div class="scroll"><table><thead><tr><th>Chain</th><th>Pool</th><th>vKOIN price</th><th>Gap vs Koinos</th><th>After pool fees</th><th>Liquidity</th><th>24h volume</th></tr></thead><tbody id="xBody"></tbody></table></div>
+    <div class="scroll"><table><thead><tr><th>Chain</th><th>Pool</th><th>vKOIN price</th><th>Gap vs Koinos</th><th>After pool fees</th><th title="Rough most you could make by trading this pool back in line with Koinos, minus two swaps of gas. Bridge fees not included.">Max profit (est.)</th><th>Gas per swap</th><th>Liquidity</th><th>24h volume</th></tr></thead><tbody id="xBody"></tbody></table></div>
     <p class="status" id="xStatus"></p>
   </div>
 </section>
@@ -335,8 +335,8 @@ body.txbusy .btn.primary{cursor:progress}
 
 <script src="vendor/koilib-9.4.1.min.js"></script>
 <script src="vendor/kondor-js-0.4.3.min.js"></script>
-<script src="js/abi.js?v=202611261017"></script>
-<script src="js/loopcore.js?v=202611261017"></script>
+<script src="js/abi.js?v=202611261018"></script>
+<script src="js/loopcore.js?v=202611261018"></script>
 <script>
 {
 const PAIR='1NqLghiFRwkXZR7NBFHHiCJkF5gLHyJap1';
@@ -682,10 +682,10 @@ window.KC={get rows(){return rows},get koinUsd(){return koinUsd},rpc,pb,b64,refr
 })();
 }
 </script>
-<script src="js/wallet.js?v=202611261017"></script>
-<script src="js/buy.js?v=202611261017"></script>
-<script src="js/loops.js?v=202611261017"></script>
-<script src="js/lp.js?v=202611261017"></script>
-<script src="js/xchain.js?v=202611261017"></script>
+<script src="js/wallet.js?v=202611261018"></script>
+<script src="js/buy.js?v=202611261018"></script>
+<script src="js/loops.js?v=202611261018"></script>
+<script src="js/lp.js?v=202611261018"></script>
+<script src="js/xchain.js?v=202611261018"></script>
 </body>
 </html>
