@@ -28,3 +28,5 @@ Running log for the overnight check-ins. Read this first, add to it every time.
 ## Log
 
 - 2026-11-25 21:40 ET: v1 shipped (wallet, buy, loops, liquidity, cross-chain, alerts). User connected Kondor fine. Fixed: "Spendable KOIN" showed 0 because of a 10 KOIN mana buffer; now 1.5 KOIN, plus a note showing how much KOIN is still recharging mana. Loop empty state now explains hidden smaller/unlisted loops. Observed: VHP edge ~0%, no listed-token loops >= 1 KOIN, cross-chain gap ~2.4% after pool fees (Ethereum vKOIN above native).
+- Script tags carry `?v=<timestamp>` so browsers load new JS right after a deploy. Bump it on every JS change: `V=$(date -u +%Y%m%d%H%M); sed -i -E "s#src=\"(js/[a-z]+\.js)(\?v=[0-9]+)?\"#src=\"\1?v=$V\"#g" index.html`
+- Loops with unlisted tokens (21:37 ET): 6 found, best +8.7 KOIN via KOIN→vUSDC→USDS→KOIN. All share one tiny USDS/KOIN pool (~$3), so only one is takeable.
