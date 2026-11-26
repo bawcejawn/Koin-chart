@@ -5,7 +5,7 @@
   const $ = id => document.getElementById(id);
   const K = () => window.KW;
   let state = { loops: [], scannedAt: 0, scanning: false, listed: new Set(['koin', 'vhp']), symbols: {}, pairCount: 0, err: null };
-  let opts = { start: 'koin', minProfit: 1, unlisted: false };
+  let opts = { start: 'both', minProfit: 1, unlisted: false };
   try { Object.assign(opts, JSON.parse(localStorage.getItem('kc-loop-opts') || '{}')); } catch (e) {}
   const saveOpts = () => { try { localStorage.setItem('kc-loop-opts', JSON.stringify(opts)); } catch (e) {} };
 
@@ -43,7 +43,7 @@
       const cands = LoopCore.findLoops(pairs, starts, { maxHops: 4, minEdge: 1.003, minUsd: 1, allowToken: id => opts.unlisted || listed.has(id) });
       // rank by rough profit, then verify the best ones on-chain
       const ranked = cands.map(l => ({ l, est: LoopCore.estimate(l) })).filter(x => x.est.profit > 0n)
-        .sort((x, y) => (y.est.profit > x.est.profit ? 1 : -1)).slice(0, 24);
+        .sort((x, y) => (y.est.profit > x.est.profit ? 1 : -1)).slice(0, 40);
       const poolIds = [...new Set(ranked.flatMap(x => x.l.edges.map(e => e.p.id)))];
       const live = {};
       for (let i = 0; i < poolIds.length; i += 8) {
@@ -69,9 +69,15 @@
           unlisted: path.some(t => !listed.has(t)),
         });
       }
-      // one loop per distinct route; best first
-      const seen = new Set();
-      state.loops = loops.sort((a, b) => (b.profit > a.profit ? 1 : -1)).filter(x => { const k = x.path.join('>'); if (seen.has(k)) return false; seen.add(k); return true; });
+      // Best first, then keep only loops that don't share a pool with a better one:
+      // taking one loop moves its pools, which wipes out any loop that shares them.
+      const used = new Set();
+      let overlapping = 0;
+      state.loops = loops.sort((a, b) => (b.profit > a.profit ? 1 : -1)).filter(x => {
+        if (x.pools.some(id => used.has(id))) { overlapping++; return false; }
+        x.pools.forEach(id => used.add(id)); return true;
+      });
+      state.overlapping = overlapping;
       state.scannedAt = Date.now();
     } catch (e) { console.error(e); state.err = 'Scan failed: ' + (e.message || e); }
     state.scanning = false; render();
@@ -157,7 +163,7 @@
     const minRaw = k.toRaw(opts.minProfit);
     const shown = state.loops.map((l, i) => ({ l, i, s: sized(l) })).filter(x => x.s.profit >= minRaw);
     $('loopStatus').textContent = state.err ? state.err : state.scannedAt
-      ? `Checked ${state.pairCount} pools at ${new Date(state.scannedAt).toLocaleTimeString()} · ${shown.length} loop${shown.length === 1 ? '' : 's'} worth at least ${opts.minProfit} ${sym(opts.start === 'both' ? 'koin' : opts.start)}${opts.start === 'both' ? '/VHP' : ''} · pools re-checked on-chain`
+      ? `Checked ${state.pairCount} pools at ${new Date(state.scannedAt).toLocaleTimeString()} · ${shown.length} separate loop${shown.length === 1 ? '' : 's'} worth at least ${opts.minProfit} ${sym(opts.start === 'both' ? 'koin' : opts.start)}${opts.start === 'both' ? '/VHP' : ''}${state.overlapping ? ` (${state.overlapping} more share a pool with these and would vanish once one runs)` : ''} · pools re-checked on-chain`
       : 'Not scanned yet.';
     if (!shown.length) {
       const smaller = state.loops.map(l => sized(l)).filter(s => s.profit > 0n && s.profit < minRaw);
