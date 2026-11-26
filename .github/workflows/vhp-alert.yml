@@ -6,7 +6,7 @@ name: Opportunity alerts
 # Anti-spam: one open issue per type, a cooldown after each closes, and a daily cap.
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '7,17,27,37,47,57 * * * *'   # every 10 min, off the busy top-of-hour slots
   workflow_dispatch:
 
 permissions:
