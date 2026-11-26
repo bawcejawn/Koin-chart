@@ -48,6 +48,14 @@
     }
   }
 
+  const MIN_GAIN = 0.01; // VHP; below this the trade isn't worth a click
+  // Extra VHP vs burning for swapping x KOIN, from the latest pool state
+  function bestGain(x) {
+    const rows = window.KC.rows, last = rows[rows.length - 1];
+    if (!last || !(x > 0)) return 0;
+    const out = last.a * 0.9975 * x / (last.b + 0.9975 * x);
+    return out - x;
+  }
   function bestAmount() {
     const rows = window.KC.rows, last = rows[rows.length - 1];
     if (!last) return 0;
@@ -61,7 +69,7 @@
     const spend = k.W.address ? k.spendableKoin() : Infinity;
     const use = Math.min(best, spend);
     const b = $('buyBestBtn');
-    if (best <= 0.01) { b.disabled = true; b.textContent = 'No edge right now'; }
+    if (bestGain(use) < MIN_GAIN) { b.disabled = true; b.textContent = 'No worthwhile edge right now'; }
     else {
       b.disabled = k.W.busy;
       b.textContent = !k.W.address ? `Connect & buy ${k.fmt(best, 0)} KOIN worth` : use < best - 0.01 ? `Buy with ${k.fmt(use, 2)} KOIN (your max)` : `Buy best amount: ${k.fmt(best, 2)} KOIN`;

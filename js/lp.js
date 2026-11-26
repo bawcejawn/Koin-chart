@@ -97,7 +97,7 @@
       rows: [
         ['You deposit', `${k.fmt(x, 4)} KOIN + ${k.fmt(k.fromRaw(vhpRaw), 4)} VHP`],
         ['Minimum deposited', `${k.fmt(k.fromRaw(minK), 4)} KOIN + ${k.fmt(k.fromRaw(minV), 4)} VHP`],
-        ['Your new pool share', `≈ ${((x / (P.b + x)) * 100 + (k.W.lp / P.supply) * 100 * (P.b / (P.b + x))).toFixed(4)}%`],
+        ['Your new pool share', `≈ ${(((k.W.lp + P.supply * x / P.b) / (P.supply + P.supply * x / P.b)) * 100).toFixed(4)}%`],
         ['Network cost', 'Some mana (recharges)'],
       ],
       confirm: 'Review and sign in Kondor',
