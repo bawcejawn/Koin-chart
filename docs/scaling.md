@@ -1,6 +1,6 @@
 # Scaling beyond Koinos: accumulating USDC, ETH and BTC
 
-Draft research (overnight, Nov 26 2026). Goal: grow KOIN/VHP first, then USDC, ETH and BTC from other chains, and bring them onto Koinos through Vortex. Nothing here is built or merged; each option ends with what needs your decision.
+Draft research (overnight, Nov 26 2026; updated 5:15 am ET with live numbers). Goal: grow KOIN/VHP first, then USDC, ETH and BTC from other chains, and bring them onto Koinos through Vortex. Nothing here is built or merged; each option ends with what needs your decision.
 
 ## What we measured tonight
 
@@ -21,7 +21,37 @@ Draft research (overnight, Nov 26 2026). Goal: grow KOIN/VHP first, then USDC, E
 - Vortex does not publish its fee schedule in its announcement posts. The bridge UI shows the cost per transfer; we need one real quote (see decisions).
 - No meaningful BTC exists on Koinos (a "BTC" token there has about $4 of liquidity and isn't on KoinDX's list). BTC would have to be bought on another chain (for example WBTC on Ethereum or cbBTC on Base).
 
-## Options, ranked
+## Expected value, with live numbers (5:15 am ET)
+
+Gas is not the obstacle right now: Ethereum L1 was at about 0.05 gwei (a Uniswap swap costs about $0.01), Base under $0.01, Solana under $0.01. The gaps stay open because moving KOIN between chains takes the bridge, not because trading is expensive.
+
+| Pool | vKOIN price | Gap vs Koinos | After pool fees | Most you could make once* |
+|---|---|---|---|---|
+| Ethereum vKOIN/USDT (Uniswap v4, $26k) | $0.01961 | +4.34% | +3.09% | about $3.04 |
+| Ethereum vKOIN/WETH (Uniswap v3, $25k) | $0.01948 | +3.65% | +2.40% | about $1.72 |
+| Solana vKOIN/SOL (Raydium, $8k) | $0.01974 | +5.00% | +3.75% | about $1.41 |
+| Base vKOIN/USDC ($8.7k) | $0.01899 | +1.04% | none | — |
+| Ethereum vKOIN/USDC ($1.8k) | $0.01879 | −0.05% | none | — |
+
+*Trading one pool until its price meets Koinos, constant-product estimate, minus gas. Concentrated-liquidity pools can give somewhat more or less.
+
+**What that means:** capturing every open gap once is worth roughly **$6 in total** today. The gaps have stayed open for 8+ hours, so they don't close on their own quickly, but each one only pays once until prices drift apart again. Realistic income from option 1 is a few dollars per divergence, plus whatever new divergences appear when someone trades vKOIN heavily. It also needs inventory on two chains and periodic Vortex transfers, whose cost isn't published.
+
+### Ranked by expected value per effort
+
+1. **VHP buy windows on Koinos (already built).** 5–30% edges over burning, several times a week, sized up to thousands of KOIN. This is the biggest earner for a miner and needs nothing new. Fixing the alert schedule (see the morning summary) matters more than anything below.
+2. **LP fees in VHP/KOIN (already built).** About 10–16%/yr at recent volume, before KoinDX's cut. Pairs well with mining, since you hold both tokens.
+3. **Cross-chain inventory arbitrage (option 1).** A few dollars per divergence today. Worth it only if vKOIN volume grows, or as a way to slowly build USDT/ETH on the side.
+4. **Koinos loops (already built).** Under $1 today.
+5. **1% fee pool contract.** Real project, depends on volume Koinos doesn't have yet.
+
+### What can run safely for free (no keys, no permissions)
+
+- The page itself: all monitors, including the new per-pool "max profit" and gas columns in Cross-chain.
+- GitHub Actions alerts on a public repo (free), once the schedule is owned by your account.
+- Public data: Koinos RPC, KoinDX API, GeckoTerminal, publicnode.com Ethereum/Base RPCs (tested from the page, CORS works).
+
+## Options in detail
 
 ### 1. Inventory arbitrage of the KOIN / vKOIN gap (best fit for the goal)
 
