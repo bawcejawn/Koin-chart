@@ -56,6 +56,7 @@ a{color:var(--acc)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--up);display:inline-block}
 .wBal{display:grid;grid-template-columns:repeat(4,auto);gap:4px 16px;margin-top:4px;justify-content:end}
 .wBal div{display:flex;flex-direction:column;align-items:flex-end}
+.wNote{font-size:12px;color:#ffcf99;margin:6px 0 0;max-width:46ch;margin-left:auto;text-align:right}
 .wBal b{font-size:16px;font-weight:500;white-space:nowrap}.wBal span{font-size:11px;color:var(--mute)}
 .nav{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:6px max(3vw,14px);background:rgba(15,17,21,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
 .nav a{color:var(--ink);text-decoration:none;font-size:14px;padding:8px 10px;border-radius:6px}
@@ -156,8 +157,9 @@ body.txbusy .btn.primary{cursor:progress}
         <div><b id="wKoin">0</b><span>KOIN</span></div>
         <div><b id="wVhp">0</b><span>VHP</span></div>
         <div title="Mana comes from the KOIN you hold and recharges over time. Koinos only lets you move KOIN while its mana is available."><b id="wMana">0</b><span>Mana</span></div>
-        <div title="KOIN you can swap right now (limited by mana, keeping 10 KOIN of mana free for the transaction)."><b id="wSpend">0</b><span>Spendable KOIN</span></div>
+        <div title="KOIN you can swap right now: KOIN can only move when its mana is fully charged."><b id="wSpend">0</b><span>Spendable KOIN</span></div>
       </div>
+      <p class="wNote" id="wNote" hidden></p>
     </div>
   </div>
 </div>

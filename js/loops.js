@@ -160,7 +160,12 @@
       ? `Checked ${state.pairCount} pools at ${new Date(state.scannedAt).toLocaleTimeString()} · ${shown.length} loop${shown.length === 1 ? '' : 's'} worth at least ${opts.minProfit} ${sym(opts.start === 'both' ? 'koin' : opts.start)}${opts.start === 'both' ? '/VHP' : ''} · pools re-checked on-chain`
       : 'Not scanned yet.';
     if (!shown.length) {
-      el.innerHTML = `<div class="empty">${state.scanning ? 'Scanning all KoinDX pools…' : 'No profitable loops right now at your minimum. Loops appear when someone makes a big unbalanced trade; this rescans every 90 seconds.'}</div>`;
+      const smaller = state.loops.map(l => sized(l)).filter(s => s.profit > 0n && s.profit < minRaw);
+      const bestSmall = smaller.reduce((m, s) => s.profit > m ? s.profit : m, 0n);
+      const tips = [];
+      if (smaller.length) tips.push(`${smaller.length} smaller loop${smaller.length === 1 ? ' is' : 's are'} hidden (best +${k.fmt(k.fromRaw(bestSmall), 3)}). Lower "worth at least" to see ${smaller.length === 1 ? 'it' : 'them'}.`);
+      if (!opts.unlisted) tips.push('Most loops run through smaller tokens that aren\'t on KoinDX\'s official list. Tick "Include tokens not on KoinDX\'s official list" to check those too.');
+      el.innerHTML = `<div class="empty">${state.scanning ? 'Scanning all KoinDX pools…' : 'No loops worth your minimum right now. They appear after someone makes a big lopsided trade, and this rescans every 90 seconds.'}${tips.length && !state.scanning ? '<br><br>' + tips.map(k.esc).join('<br>') : ''}</div>`;
       return;
     }
     el.innerHTML = shown.map(({ l, i, s }) => {

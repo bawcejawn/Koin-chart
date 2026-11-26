@@ -7,7 +7,8 @@
   const KOIN = '19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK';
   const VHP = '12Y5vW6gk8GceH53YfRkRre2Rrcsgw7Naq';
   const VHP_PAIR = '1NqLghiFRwkXZR7NBFHHiCJkF5gLHyJap1';
-  const MANA_BUFFER = 10; // KOIN of mana kept free so the transaction itself can run
+  const MANA_BUFFER = 1.5; // KOIN of mana kept free so the transaction itself can run (a swap uses ~0.5-4)
+  const REGEN_DAYS = 5;    // Koinos mana fully recharges over about 5 days
   const contractAddr = id => id === 'koin' ? KOIN : id === 'vhp' ? VHP : id;
 
   const provider = new Provider(['https://api.koinos.io']);
@@ -112,8 +113,8 @@
     let entry = null;
     try {
       const rc = Number(await provider.getAccountRc(W.address));
-      if (rc < 2e8) throw new Error('Not enough mana to send a transaction. Mana comes from the KOIN in this wallet and recharges over time.');
-      const rcLimit = String(Math.min(rc, 1e9)); // at most 10 KOIN of mana; only what is used is consumed (and it recharges)
+      if (rc < 5e7) throw new Error('Not enough mana to send a transaction. Mana comes from the KOIN in this wallet and recharges over time.');
+      const rcLimit = String(Math.min(rc, 5e8)); // at most 5 KOIN of mana; only what is used is consumed (and it recharges)
       const tx = await Transaction.prepareTransaction({ header: { rc_limit: rcLimit, payer: W.address }, operations: ops.filter(Boolean) }, provider, W.address);
       const signer = kondor.getSigner(W.address);
       toast('Check the Kondor popup to review and sign.', 'info', 8000);
@@ -220,6 +221,13 @@
       $('wVhp').textContent = fmt(W.vhp, 2);
       $('wMana').textContent = fmt(Math.max(0, W.mana), 2);
       $('wSpend').textContent = fmt(spendableKoin(), 2);
+      const charging = Math.max(0, W.koin - W.mana);
+      const note = $('wNote');
+      if (W.koin > 0 && charging > 0.01) {
+        const hrs = charging / (W.koin / (REGEN_DAYS * 24));
+        note.hidden = false;
+        note.textContent = `${fmt(charging, 2)} KOIN is still recharging its mana and can't move yet (Koinos rule: KOIN moves only with full mana). Fully charged in about ${hrs < 48 ? Math.ceil(hrs) + ' h' : (hrs / 24).toFixed(1) + ' days'}.`;
+      } else note.hidden = true;
     }
     document.body.classList.toggle('connected', on);
     document.body.classList.toggle('txbusy', !!W.busy);
