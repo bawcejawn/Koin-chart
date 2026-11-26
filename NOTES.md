@@ -39,3 +39,4 @@ Running log for the overnight check-ins. Read this first, add to it every time.
   - Loop optimization measured on live data: listed-only = 0 loops; unlisted, 4 hops = 136 candidates, but they overlap heavily: the non-overlapping set is 4 loops worth ~14 KOIN total (best 8.7). 5 hops = 793 candidates, no extra profit (kept 4). VHP start adds ~1.09 VHP (VHP>DRUGS>67>KOIN>VHP).
   - Changed: scanner now lists only loops that don't share a pool with a better one (and says how many overlapping ones were folded), verifies top 40 instead of 24, and defaults to "KOIN or VHP".
   - Loops starting in vUSDC / vUSDT / vETH are the same USDS mispricing seen in another currency (~$0.14-0.16 each). Total Koinos loop opportunity right now is under $1, so growing USDC/ETH/BTC meaningfully needs other venues (see docs/scaling.md PR).
+- Research PR opened: research/scaling (docs/scaling.md), not merged; 4 decisions for the user.
