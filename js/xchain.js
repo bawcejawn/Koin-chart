@@ -11,7 +11,22 @@
     { net: 'solana', chain: 'Solana', dex: 'Raydium', addr: '2kbZSkxa3M7VAWMnZDqBNarkFFBYUyskeavXnq1oK3gT', fee: 1 },
   ];
   const KOINDX_FEE = 0.25;
-  let data = [], at = 0, err = null;
+  let data = [], at = 0, err = null, gas = {}; // gas: USD cost of one swap per chain
+  const GAS_UNITS = 180000; // a typical Uniswap swap
+  const RPC = { eth: 'https://ethereum-rpc.publicnode.com', base: 'https://base-rpc.publicnode.com' };
+  async function gasPrices(ethUsd) {
+    const out = { solana: 0.002 };
+    await Promise.all(Object.entries(RPC).map(async ([net, url]) => {
+      try {
+        const j = await (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_gasPrice', params: [] }) })).json();
+        out[net] = Number(BigInt(j.result)) / 1e18 * GAS_UNITS * ethUsd;
+      } catch (e) {}
+    }));
+    return out;
+  }
+  // Rough most-you-could-make by trading against one pool until its price meets Koinos (constant-product estimate;
+  // concentrated-liquidity pools can differ). netGap as a fraction, after fees.
+  const maxProfit = (liqUsd, netGap) => netGap > 0 ? (liqUsd / 2) * (Math.sqrt(1 + netGap) - 1) ** 2 : 0;
 
   async function load() {
     err = null;
@@ -23,6 +38,9 @@
         const r = await (await fetch(`https://api.geckoterminal.com/api/v2/networks/${net}/pools/multi/${addrs.join(',')}`)).json();
         for (const d of r.data || []) results[d.attributes.address.toLowerCase()] = d.attributes;
       }));
+      let ethUsd = 0;
+      for (const a of Object.values(results)) if (/vKOIN \/ WETH/i.test(a.name || '')) ethUsd = +a.quote_token_price_usd;
+      gas = ethUsd ? await gasPrices(ethUsd) : {};
       data = POOLS.map(p => {
         const a = results[p.addr.toLowerCase()];
         if (!a) return { ...p, missing: true };
@@ -42,14 +60,18 @@
     if (!native || !data.length) { $('xBody').innerHTML = ''; return; }
     let best = null;
     $('xBody').innerHTML = data.map(p => {
-      if (p.missing) return `<tr><td>${k.esc(p.chain)}</td><td>${k.esc(p.dex)}</td><td colspan="5" class="mute">No data</td></tr>`;
+      if (p.missing) return `<tr><td>${k.esc(p.chain)}</td><td>${k.esc(p.dex)}</td><td colspan="7" class="mute">No data</td></tr>`;
       const gap = (p.price / native - 1) * 100;
       const net = Math.abs(gap) - p.fee - KOINDX_FEE;
+      const g = gas[p.net];
+      const prof = maxProfit(p.liq, net / 100) - (g || 0) * 2;
       if (p.liq >= 1000 && (!best || net > best.net)) best = { ...p, gap, net };
       const url = `https://www.geckoterminal.com/${p.net}/pools/${p.addr}`;
       return `<tr><td>${k.esc(p.chain)}</td><td><a href="${url}" target="_blank" rel="noopener">${k.esc(p.name || p.dex)}</a></td>
         <td>$${p.price.toFixed(5)}</td><td class="${gap >= 0 ? 'up' : 'down'}">${gap >= 0 ? '+' : ''}${gap.toFixed(2)}%</td>
         <td class="${net > 0 ? 'up' : 'mute'}">${net > 0 ? '+' + net.toFixed(2) + '%' : 'none'}</td>
+        <td class="${prof > 0.5 ? 'up' : 'mute'}">${prof > 0.01 ? '≈ $' + k.fmt(prof, 2) : '—'}</td>
+        <td>${g != null ? '$' + (g < 0.01 ? '<0.01' : k.fmt(g, 2)) : '—'}</td>
         <td>$${k.fmt(p.liq, 0)}</td><td>$${k.fmt(p.vol, 0)}</td></tr>`;
     }).join('');
     const h = $('xHeadline');

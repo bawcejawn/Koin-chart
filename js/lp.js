@@ -49,7 +49,7 @@
     if (list.length > 1) {
       const first = list[0], g = growthIndex(), days = (Date.now() - first.t) / 864e5;
       const gr = (g / first.g - 1) * 100;
-      $('lpMeasured').textContent = days >= 0.25 ? `${gr >= 0 ? '+' : ''}${gr.toFixed(3)}% in ${days < 2 ? (days * 24).toFixed(0) + ' h' : days.toFixed(1) + ' days'} (≈${(gr / days * 365).toFixed(1)}%/yr)` : 'Collecting…';
+      $('lpMeasured').textContent = days >= 1 ? `${gr >= 0 ? '+' : ''}${gr.toFixed(3)}% in ${days.toFixed(1)} days (≈${(gr / days * 365).toFixed(1)}%/yr)` : `Collecting… ${Math.round(days * 24)} h of the 24 h needed`;
     } else $('lpMeasured').textContent = 'Collecting… (check back in a few hours)';
 
     // your position
