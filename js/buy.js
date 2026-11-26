@@ -75,8 +75,9 @@
       b.textContent = !k.W.address ? `Connect & buy ${k.fmt(best, 0)} KOIN worth` : use < best - 0.01 ? `Buy with ${k.fmt(use, 2)} KOIN (your max)` : `Buy best amount: ${k.fmt(best, 2)} KOIN`;
     }
     const a = $('buyAmtBtn'), amt = parseFloat($('amt').value);
-    a.disabled = k.W.busy || !(amt > 0);
-    a.textContent = k.W.address ? 'Buy VHP with this amount' : 'Connect & buy this amount';
+    const gainAmt = bestGain(amt);
+    a.disabled = k.W.busy || !(amt > 0) || gainAmt <= 0;
+    a.textContent = !(amt > 0) ? 'Enter an amount' : gainAmt <= 0 ? 'Burning gives more for this amount' : k.W.address ? 'Buy VHP with this amount' : 'Connect & buy this amount';
     $('buyHint').textContent = k.W.address ? `You can spend ${k.fmt(k.spendableKoin(), 2)} KOIN now.` : 'Connect Kondor to buy in one click.';
   }
 

@@ -88,7 +88,7 @@ td.empty{border:0}
 .badge.warn{background:#3a2a17;color:#ffb066}
 .lNums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .lNums div{display:flex;flex-direction:column}.lNums b{font-weight:500;white-space:nowrap;font-size:15px}.lNums span{font-size:11px;color:var(--mute)}
-@media(max-width:760px){.loop{grid-template-columns:1fr}.lNums{grid-template-columns:repeat(2,minmax(0,1fr))}.loop .btn{width:100%}.wBal{grid-template-columns:repeat(2,auto)}.wallet,.wTop{justify-content:flex-start}.settings{margin-left:0}}
+@media(max-width:760px){.nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav a,.settings summary{white-space:nowrap}.setBox{position:fixed;right:12px;top:52px}.loop{grid-template-columns:1fr}.lNums{grid-template-columns:repeat(2,minmax(0,1fr))}.loop .btn{width:100%}.wBal{grid-template-columns:repeat(2,auto)}.wallet,.wTop{justify-content:flex-start}.settings{margin-left:0}}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 8px;font-size:13px}
 .headline{margin:0 0 10px;font-size:14px}
 .toasts{position:fixed;right:16px;bottom:16px;z-index:60;display:flex;flex-direction:column;gap:8px;max-width:min(420px,calc(100vw - 32px))}
@@ -335,8 +335,8 @@ body.txbusy .btn.primary{cursor:progress}
 
 <script src="vendor/koilib-9.4.1.min.js"></script>
 <script src="vendor/kondor-js-0.4.3.min.js"></script>
-<script src="js/abi.js?v=202611260733"></script>
-<script src="js/loopcore.js?v=202611260733"></script>
+<script src="js/abi.js?v=202611261017"></script>
+<script src="js/loopcore.js?v=202611261017"></script>
 <script>
 {
 const PAIR='1NqLghiFRwkXZR7NBFHHiCJkF5gLHyJap1';
@@ -520,7 +520,7 @@ function arb(){
   $('buyAvg').textContent=buyOpen?n(bo/bx,5)+' VHP / KOIN':'—';
   $('buyBE').textContent=buyOpen?n(breakEven(K,V),2)+' KOIN':'—';
   const edge=(buyRate-1)*100;
-  $('arbTitle').textContent=edge>=thr()?`Buying VHP beats burning by ${edge.toFixed(2)}%, above your ${thr()}% alert level`:buyOpen?'Buying VHP in the pool beats burning right now':'No edge right now: burning is as good or better';
+  $('arbTitle').textContent=edge>=thr()?`Buying VHP beats burning by ${edge.toFixed(2)}%, above your ${thr()}% alert level`:bg>=0.01?'Buying VHP in the pool beats burning right now':buyOpen?'Tiny edge right now: not worth a trade yet':'No edge right now: burning is as good or better';
   $('arb').classList.toggle('live',edge>=thr());
   calc();
   edgeHistory();
@@ -682,10 +682,10 @@ window.KC={get rows(){return rows},get koinUsd(){return koinUsd},rpc,pb,b64,refr
 })();
 }
 </script>
-<script src="js/wallet.js?v=202611260733"></script>
-<script src="js/buy.js?v=202611260733"></script>
-<script src="js/loops.js?v=202611260733"></script>
-<script src="js/lp.js?v=202611260733"></script>
-<script src="js/xchain.js?v=202611260733"></script>
+<script src="js/wallet.js?v=202611261017"></script>
+<script src="js/buy.js?v=202611261017"></script>
+<script src="js/loops.js?v=202611261017"></script>
+<script src="js/lp.js?v=202611261017"></script>
+<script src="js/xchain.js?v=202611261017"></script>
 </body>
 </html>
