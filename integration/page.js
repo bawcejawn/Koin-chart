@@ -69,10 +69,11 @@ async function openPage(wif) {
   await waitFor(() => w.KP && w.document.getElementById('pBody').textContent.includes('/'), 60000, 'pools to load');
   // approve every review dialog automatically
   const timer = setInterval(() => { const m = w.document.getElementById('modal'); if (m && !m.hidden) m.querySelector('.mOk').click(); }, 200);
-  return { w, $: id => w.document.getElementById(id), signer, errors, close: () => { clearInterval(timer); w.close(); } };
+  return { w, toastLog, $: id => w.document.getElementById(id), signer, errors, close: () => { clearInterval(timer); w.close(); } };
 }
 const set = (el, v) => { el.value = v; el.dispatchEvent(new el.ownerDocument.defaultView.Event('input')); el.dispatchEvent(new el.ownerDocument.defaultView.Event('change')); };
-const lastAct = w => JSON.parse(w.localStorage.getItem('kp-activity') || '[]')[0] || {};
+// file:// pages have no localStorage in jsdom, so watch the page's own toasts instead
+const confirmed = (pg, re) => pg.toastLog.some(x => re.test(x) && /confirmed/.test(x));
 
 async function main() {
   const lk = new LocalKoinos();
@@ -91,7 +92,7 @@ async function main() {
   const ethBefore = await balance(D.tokens.tETH, t.signer.address);
   console.log('  swap button:', t.$('sGo').textContent, 'disabled:', t.$('sGo').disabled, 'from/to', t.$('sFrom').value, t.$('sTo').value);
   t.$('sGo').click();
-  await waitFor(() => /confirmed/.test(lastAct(t.w).status || ''), 90000, 'swap confirmation');
+  await waitFor(() => confirmed(t, /^Swap/), 90000, 'swap confirmation');
   const gotEth = (await balance(D.tokens.tETH, t.signer.address)) - ethBefore;
   check('swap from the page delivers tokens', gotEth > 0n, { tETH: Number(gotEth) / 1e8 });
 
@@ -101,7 +102,7 @@ async function main() {
   set(t.$('lA'), p.A === 'vETH' ? '0.001' : '30');
   await waitFor(() => !t.$('lGo').disabled, 10000, 'add button');
   t.$('lGo').click();
-  await waitFor(() => /Add liquidity/.test(lastAct(t.w).label || '') && /confirmed/.test(lastAct(t.w).status || ''), 90000, 'add confirmation');
+  await waitFor(() => confirmed(t, /^Add liquidity/), 90000, 'add confirmation');
   await waitFor(() => t.w.KP.pools.find(x => x.A + '/' + x.B === t.$('lPool').value)?.mine > 0n, 30000, 'shares to show');
   check('add liquidity from the page mints shares', true);
 
@@ -109,7 +110,7 @@ async function main() {
   set(t.$('rPct'), '100');
   await waitFor(() => !t.$('rGo').disabled, 10000, 'remove button');
   t.$('rGo').click();
-  await waitFor(() => /Remove/.test(lastAct(t.w).label || '') && /confirmed/.test(lastAct(t.w).status || ''), 90000, 'remove confirmation');
+  await waitFor(() => confirmed(t, /^Remove/), 90000, 'remove confirmation');
   await waitFor(() => t.w.KP.pools.find(x => x.A + '/' + x.B === t.$('lPool').value)?.mine === 0n, 30000, 'shares to clear');
   check('remove liquidity from the page returns all shares', true);
   check('owner panel hidden for a trader', t.$('ownerBox').hidden);
@@ -126,7 +127,7 @@ async function main() {
   const [a] = key.split('/');
   const koinBefore = await balance(D.koin, o.signer.address);
   claimBtn.click();
-  await waitFor(() => /Claim/.test(lastAct(o.w).label || '') && /confirmed/.test(lastAct(o.w).status || ''), 90000, 'claim confirmation');
+  await waitFor(() => confirmed(o, /^Claim/), 90000, 'claim confirmation');
   const claimed = (await balance(D.koin, o.signer.address)) - koinBefore;
   check('owner claims fees from the page', a !== 'KOIN' || claimed > 0n, { pool: key, koin: Number(claimed) / 1e8 });
 
