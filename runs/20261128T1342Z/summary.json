@@ -1,0 +1,15 @@
+{
+  "since": "2026-11-28T08:02:01.293Z",
+  "buys": 1,
+  "koinSpent": 20438.40388795,
+  "vhpGot": 21916.11749632,
+  "extraVhpVsBurn": 1477.71360837,
+  "loops": 0,
+  "loopProfitKoin": 0,
+  "skipped": 0,
+  "errors": 32,
+  "refills": 0,
+  "refilledKoin": 0,
+  "paperKoin": 9561.59611205,
+  "paperVhpSent": 21916.11749632
+}

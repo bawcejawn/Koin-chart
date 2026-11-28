@@ -1,0 +1,29 @@
+[2026-11-28T08:02:01.293Z] PAPER started. address=PAPER producer=1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd reserve=100 KOIN minEdge=1%
+[2026-11-28T08:02:02.487Z] PAPER BUY VHP: 20438.4039 KOIN -> 21916.1175 VHP (+1477.7136 vs burning, edge 14.983%)
+[2026-11-28T08:02:02.487Z] PAPER (paper) would send 21916.1175 VHP to producer 1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd
+[2026-11-28T08:02:11.669Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T09:02:01.296Z] PAPER summary {"since":"2026-11-28T08:02:01.293Z","buys":1,"koinSpent":20438.40388795,"vhpGot":21916.11749632,"extraVhpVsBurn":1477.71360837,"loops":0,"loopProfitKoin":0,"skipped":0,"errors":1,"refills":0,"refilledKoin":0,"paperKoin":9561.59611205,"paperVhpSent":21916.11749632}
+[2026-11-28T10:02:01.298Z] PAPER summary {"since":"2026-11-28T08:02:01.293Z","buys":1,"koinSpent":20438.40388795,"vhpGot":21916.11749632,"extraVhpVsBurn":1477.71360837,"loops":0,"loopProfitKoin":0,"skipped":0,"errors":1,"refills":0,"refilledKoin":0,"paperKoin":9561.59611205,"paperVhpSent":21916.11749632}
+[2026-11-28T10:17:10.442Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T10:23:16.081Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T10:31:36.375Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T10:36:46.271Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T10:42:01.573Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T10:49:00.740Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T10:58:39.524Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T11:02:01.298Z] PAPER summary {"since":"2026-11-28T08:02:01.293Z","buys":1,"koinSpent":20438.40388795,"vhpGot":21916.11749632,"extraVhpVsBurn":1477.71360837,"loops":0,"loopProfitKoin":0,"skipped":0,"errors":29,"refills":0,"refilledKoin":0,"paperKoin":9561.59611205,"paperVhpSent":21916.11749632}
+[2026-11-28T11:04:45.983Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T11:18:13.215Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T12:02:01.298Z] PAPER summary {"since":"2026-11-28T08:02:01.293Z","buys":1,"koinSpent":20438.40388795,"vhpGot":21916.11749632,"extraVhpVsBurn":1477.71360837,"loops":0,"loopProfitKoin":0,"skipped":0,"errors":32,"refills":0,"refilledKoin":0,"paperKoin":9561.59611205,"paperVhpSent":21916.11749632}
+[2026-11-28T13:00:01.869Z] PAPER email queued: Bot daily summary 2026-11-28
+[2026-11-28T13:02:01.300Z] PAPER summary {"since":"2026-11-28T08:02:01.293Z","buys":1,"koinSpent":20438.40388795,"vhpGot":21916.11749632,"extraVhpVsBurn":1477.71360837,"loops":0,"loopProfitKoin":0,"skipped":0,"errors":32,"refills":0,"refilledKoin":0,"paperKoin":9561.59611205,"paperVhpSent":21916.11749632}
