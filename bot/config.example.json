@@ -1,0 +1,29 @@
+{
+  "mode": "paper",
+  "rpc": ["https://api.koinos.io"],
+  "producerAddress": "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd",
+  "keyFile": "bot.key",
+  "reserveKoin": 100,
+  "lowBalanceKoin": 150,
+  "pollMs": 3000,
+  "vhp": {
+    "enabled": true,
+    "minEdgePct": 1.0,
+    "slippagePct": 0.5,
+    "minTradeKoin": 1,
+    "sweepMinVhp": 1
+  },
+  "loops": {
+    "enabled": true,
+    "starts": ["koin"],
+    "minProfitKoin": 0.5,
+    "keepProfitPct": 50,
+    "includeUnlisted": false,
+    "allowTokens": [],
+    "minPoolUsd": 1,
+    "scanEverySec": 60
+  },
+  "paper": {
+    "startKoin": 1000
+  }
+}

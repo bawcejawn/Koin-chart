@@ -52,6 +52,7 @@ window.TOKEN_ABI = {
     balanceOf: { argument: "token.balance_of_args", return: "token.uint64", entry_point: 0x5c721497, read_only: true },
     allowance: { argument: "token.allowance_args", return: "token.uint64", entry_point: 0x32f09fa1, read_only: true },
     approve: { argument: "token.approve_args", return: "token.empty", entry_point: 0x74e21680, read_only: false },
+    transfer: { argument: "token.transfer_args", return: "token.empty", entry_point: 0x27f576ca, read_only: false },
   },
   koilib_types: {
     nested: { token: { nested: {
@@ -61,6 +62,10 @@ window.TOKEN_ABI = {
       allowance_args: { fields: {
         owner: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } },
         spender: { type: "bytes", id: 2, options: { "(koinos.btype)": "ADDRESS" } } } },
+      transfer_args: { fields: {
+        from: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } },
+        to: { type: "bytes", id: 2, options: { "(koinos.btype)": "ADDRESS" } },
+        value: { type: "uint64", id: 3, options: { jstype: "JS_STRING" } } } },
       approve_args: { fields: {
         owner: { type: "bytes", id: 1, options: { "(koinos.btype)": "ADDRESS" } },
         spender: { type: "bytes", id: 2, options: { "(koinos.btype)": "ADDRESS" } },

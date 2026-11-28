@@ -1,0 +1,14 @@
+{
+  "name": "koin-chart-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Buys VHP below burn, sends it to your producer, and runs loss-proof KoinDX loops. Paper mode by default.",
+  "main": "src/index.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/index.js",
+    "keygen": "node src/keygen.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": { "koilib": "9.4.1" }
+}

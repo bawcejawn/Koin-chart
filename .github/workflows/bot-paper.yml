@@ -1,0 +1,58 @@
+name: Bot paper test
+
+# Runs the trading bot in PAPER mode (reads the real chain, signs nothing) for a few hours,
+# saves its log and ledger to the paper-results branch, then starts the next run until `runs` is used up.
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes per run (max 340)
+        default: '340'
+      runs:
+        description: Runs left after this one (8 x 6h = 2 days)
+        default: '0'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: bot-paper
+  cancel-in-progress: false
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install
+        working-directory: bot
+        run: npm ci || npm install
+      - name: Run bot in paper mode
+        working-directory: bot
+        run: |
+          cp config.example.json config.json
+          mkdir -p data
+          timeout "${{ github.event.inputs.minutes }}m" node src/index.js || true
+          node -e "const fs=require('fs');const l=fs.existsSync('data/ledger.jsonl')?fs.readFileSync('data/ledger.jsonl','utf8').trim().split('\n').filter(Boolean).length:0;console.log('ledger entries:',l)"
+      - name: Save results to paper-results branch
+        run: |
+          stamp=$(date -u +%Y%m%dT%H%MZ)
+          mkdir -p /tmp/out && cp -r bot/data /tmp/out/$stamp
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin paper-results || true
+          if git rev-parse --verify origin/paper-results >/dev/null 2>&1; then git checkout -B paper-results origin/paper-results; else git checkout --orphan paper-results && git rm -rf . -q; fi
+          mkdir -p runs && cp -r /tmp/out/$stamp runs/
+          git add runs && git commit -qm "Paper run $stamp" && git push origin paper-results
+      - name: Start the next run
+        if: ${{ github.event.inputs.runs != '0' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          left=$(( ${{ github.event.inputs.runs }} - 1 ))
+          gh api -X POST repos/${{ github.repository }}/actions/workflows/bot-paper.yml/dispatches -f ref=main -f "inputs[minutes]=${{ github.event.inputs.minutes }}" -f "inputs[runs]=$left"
