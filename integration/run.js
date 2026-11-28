@@ -29,7 +29,9 @@ const k = (v) => Number(big(v)) / 1e8;
 
 async function main() {
   const lk = new LocalKoinos();
+  const guard = setTimeout(() => { console.error('FATAL: local chain did not come up in 6 minutes'); process.exit(2); }, 6 * 60e3);
   await lk.startNode();
+  clearTimeout(guard);
   await lk.startBlockProduction();
   await lk.deployKoinContract();
   await lk.mintKoinDefaultAccounts();
