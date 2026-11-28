@@ -31,6 +31,8 @@ async function openPage(wif) {
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => errors.push(String(e.detail?.stack || e.message)));
   vc.on('error', (...a) => errors.push(a.map(String).join(' ')));
+  vc.on('warn', (...a) => console.log('  [page warn]', a.map(String).join(' ').slice(0, 300)));
+  vc.on('log', (...a) => console.log('  [page log]', a.map(String).join(' ').slice(0, 300)));
   class Loader extends ResourceLoader {
     fetch(url) {
       if (url.includes('kondor-js')) return Promise.resolve(Buffer.from(fakeKondor(wif)));
@@ -61,6 +63,9 @@ async function openPage(wif) {
     },
   });
   const w = dom.window;
+  const toastLog = [];
+  new w.MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.textContent) { toastLog.push(n.textContent); console.log('  [toast]', n.textContent.slice(0, 200)); } })))
+    .observe(w.document.getElementById('toasts'), { childList: true });
   await waitFor(() => w.KP && w.document.getElementById('pBody').textContent.includes('/'), 60000, 'pools to load');
   // approve every review dialog automatically
   const timer = setInterval(() => { const m = w.document.getElementById('modal'); if (m && !m.hidden) m.querySelector('.mOk').click(); }, 200);
@@ -74,6 +79,7 @@ async function main() {
   await lk.startBlockProduction(); // run.js exited; produce blocks for the page's transactions
   // ---- trader: connect, swap, add + remove liquidity ----
   const t = current = await openPage(D.trader);
+  t.w.console.error = (...a) => console.log('  [page error]', a.map(x => x && x.stack ? x.stack : String(x)).join(' ').slice(0, 600));
   t.$('wConnect').click();
   await waitFor(() => !t.$('wInfo').hidden, 30000, 'wallet connect');
   check('wallet connects', true);
@@ -83,6 +89,7 @@ async function main() {
   set(t.$('sFrom'), 'vUSDT'); set(t.$('sTo'), 'vETH'); set(t.$('sIn'), '2');
   await waitFor(() => !t.$('sGo').disabled, 10000, 'swap button');
   const ethBefore = await balance(D.tokens.tETH, t.signer.address);
+  console.log('  swap button:', t.$('sGo').textContent, 'disabled:', t.$('sGo').disabled, 'from/to', t.$('sFrom').value, t.$('sTo').value);
   t.$('sGo').click();
   await waitFor(() => /confirmed/.test(lastAct(t.w).status || ''), 90000, 'swap confirmation');
   const gotEth = (await balance(D.tokens.tETH, t.signer.address)) - ethBefore;
