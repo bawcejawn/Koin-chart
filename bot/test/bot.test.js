@@ -273,3 +273,28 @@ test('auto-claim waits while fees are under $5 and it has been less than a week'
   assert.strictEqual(await bot.feeCheck(() => 0.2), null);
   assert.strictEqual(chain.sent.length, 0);
 });
+
+test('backup: encrypts and opens with the right password only', () => {
+  const { encrypt, decrypt } = require('../src/backup');
+  const box = encrypt({ 'bot.key': 'L1secret', 'config.json': '{}' }, 'correct horse battery');
+  assert.ok(!JSON.stringify(box).includes('L1secret'));
+  assert.deepStrictEqual(decrypt(box, 'correct horse battery'), { 'bot.key': 'L1secret', 'config.json': '{}' });
+  assert.throws(() => decrypt(box, 'wrong password!!'), /Wrong password/);
+});
+
+test('monthly proof report: one CSV row per trade with its link, and a count of losing trades', () => {
+  const { monthlyReport } = require('../src/notify');
+  const dir = tmp();
+  const ledger = path.join(dir, 'ledger.jsonl');
+  fs.writeFileSync(ledger, [
+    { t: '2026-11-03T10:00:00Z', kind: 'vhp-buy', koinIn: 100, vhpOut: 110, extraVhp: 10, tx: '0xaa' },
+    { t: '2026-11-04T10:00:00Z', kind: 'loop', path: ['koin', 'x', 'koin'], amountIn: 20, amountOut: 21, profit: 1, tx: '0xbb' },
+    { t: '2026-12-01T10:00:00Z', kind: 'loop', amountIn: 5, amountOut: 6, profit: 1, tx: '0xcc' },
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  const r = monthlyReport(ledger, path.join(dir, 'reports'), '2026-11');
+  assert.strictEqual(r.trades, 2);
+  assert.strictEqual(r.losing, 0);
+  const csv = fs.readFileSync(r.file, 'utf8');
+  assert.match(csv, /koinosblocks\.com\/tx\/0xaa/);
+  assert.doesNotMatch(csv, /0xcc/);
+});

@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { makeChain, loadSigner, ADDR, LoopCore, isOwn, ownParts } = require('./chain');
-const { Notifier, dailyReport } = require('./notify');
+const { Notifier, dailyReport, monthlyReport } = require('./notify');
 const { RemotePause } = require('./guard');
 
 const E8 = 100000000n;
@@ -429,6 +429,12 @@ class Bot {
     try { const w = await this.wallet(); balances = { koin: toK(w.koin), vhp: toK(w.vhp) }; } catch (e) {}
     const body = dailyReport(path.join(this.dataDir, 'ledger.jsonl'), this.summary(), { mode: this.cfg.mode, balances });
     await this.notifier.send('summary', 'daily-' + day, `Bot daily summary ${day}`, body);
+    if (day.endsWith('-01')) {
+      const d = new Date(day + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1);
+      const month = d.toISOString().slice(0, 7);
+      const rep = monthlyReport(path.join(this.dataDir, 'ledger.jsonl'), path.join(this.dataDir, 'reports'), month);
+      await this.notifier.send('summary', 'month-' + month, `Bot proof report ${month}`, rep.md);
+    }
   }
 
   writeSummary() {

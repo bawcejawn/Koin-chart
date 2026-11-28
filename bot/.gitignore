@@ -3,3 +3,4 @@ bot.key
 config.json
 data/
 STOP
+backups/

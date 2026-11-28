@@ -73,4 +73,36 @@ function dailyReport(ledgerFile, summary, extra = {}) {
   return lines.join('\n');
 }
 
-module.exports = { Notifier, dailyReport };
+// #7 Loss-free proof: every trade of a month with its transaction link, and the totals.
+// Writes data/reports/YYYY-MM.csv and returns a markdown summary for the email.
+function monthlyReport(ledgerFile, outDir, month /* 'YYYY-MM' */, explorer = 'https://koinosblocks.com/tx/') {
+  let rows = [];
+  try { rows = fs.readFileSync(ledgerFile, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(r => String(r.t).startsWith(month)); } catch (e) {}
+  const trades = rows.filter(r => ['vhp-buy', 'loop', 'vhp-sweep', 'fee-claim', 'compound'].includes(r.kind));
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = ['time,kind,koin_in,out,gain,gain_unit,tx_link'].concat(trades.map(r => {
+    const gain = r.kind === 'vhp-buy' ? r.extraVhp : r.kind === 'loop' ? r.profit : '';
+    const unit = r.kind === 'vhp-buy' ? 'VHP vs burning' : r.kind === 'loop' ? (r.path && r.path[0] === 'vhp' ? 'VHP' : 'KOIN') : '';
+    const out = r.kind === 'vhp-buy' ? r.vhpOut : r.kind === 'loop' ? r.amountOut : r.kind === 'vhp-sweep' ? r.vhp : '';
+    return [r.t, r.kind, r.koinIn ?? r.amountIn ?? '', out, gain, unit, r.tx ? explorer + r.tx : ''].map(q).join(',');
+  })).join('\n') + '\n';
+  fs.mkdirSync(outDir, { recursive: true });
+  const file = path.join(outDir, `${month}.csv`);
+  fs.writeFileSync(file, csv);
+  const sum = (k, f) => trades.filter(r => r.kind === k).reduce((a, r) => a + (+r[f] || 0), 0);
+  const losing = trades.filter(r => (r.kind === 'vhp-buy' && r.extraVhp < 0) || (r.kind === 'loop' && r.profit < 0)).length;
+  const fmt = x => (+x).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const md = [
+    `**${month} proof report**`, '',
+    '| | |', '|---|---|',
+    `| VHP buys | ${trades.filter(r => r.kind === 'vhp-buy').length} (+${fmt(sum('vhp-buy', 'extraVhp'))} VHP vs burning) |`,
+    `| Loops | ${trades.filter(r => r.kind === 'loop').length} (+${fmt(sum('loop', 'profit'))} KOIN) |`,
+    `| VHP sent to producer | ${fmt(sum('vhp-sweep', 'vhp'))} |`,
+    `| Fee claims | ${trades.filter(r => r.kind === 'fee-claim').length} (~$${fmt(sum('fee-claim', 'usd'))}) |`,
+    `| Trades that lost | **${losing}** |`,
+    '', `Every trade with its transaction link is in \`bot/data/reports/${month}.csv\` on your PC.`,
+  ].join('\n');
+  return { file, md, trades: trades.length, losing };
+}
+
+module.exports = { Notifier, dailyReport, monthlyReport };
