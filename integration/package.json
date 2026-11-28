@@ -1,0 +1,10 @@
+{
+  "name": "koin-chart-integration",
+  "private": true,
+  "description": "End-to-end test on a private local Koinos chain (Docker): tokens, pool contract, liquidity, swaps, fees.",
+  "scripts": { "test": "node run.js" },
+  "dependencies": {
+    "@roamin/local-koinos": "0.4.16",
+    "koilib": "9.4.1"
+  }
+}
