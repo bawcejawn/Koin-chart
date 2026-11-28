@@ -1,7 +1,8 @@
 {
   "mode": "paper",
   "rpc": [
-    "https://api.koinos.io"
+    "https://api.koinos.io",
+    "https://api.koinosblocks.com"
   ],
   "verifyRpc": [],
   "verifyNeed": 1,

@@ -186,3 +186,26 @@ test('paper: a real trade by someone else does not erase our pretend trade', asy
   await bot.vhpCheck(); // the edge is gone in our shadow book, so no second big buy
   assert.strictEqual(bot.stats.buys, 1);
 });
+
+test('node failover: a bad public-node response is retried on the next node, a real chain error is not', async () => {
+  const { resilient } = require('../src/chain');
+  let calls = 0;
+  const fake = { rpcNodes: ['a', 'b'], currentNodeId: 0, async call() { calls++; if (calls === 1) throw new Error("invalid json response body: Unexpected token '<', \"<html>\""); return 'ok'; } };
+  resilient(fake);
+  assert.strictEqual(await fake.call('x', {}), 'ok');
+  assert.strictEqual(calls, 2);
+  const real = { rpcNodes: ['a'], currentNodeId: 0, async call() { calls++; throw new Error('transaction reverted: insufficient balance'); } };
+  resilient(real);
+  calls = 0;
+  await assert.rejects(() => real.call('x', {}), /reverted/);
+  assert.strictEqual(calls, 1);
+});
+
+test('live refuses unlisted-token loops until the Bot Guard is active', () => {
+  const live = new Bot(cfg({ mode: 'live', loops: { ...cfg().loops, includeUnlisted: true } }), { chain: mockChain(), dataDir: tmp(), notifier, signer: fakeSigner });
+  assert.strictEqual(live.unlistedAllowed(), false);
+  live.cfg.botGuard = { active: true };
+  assert.strictEqual(live.unlistedAllowed(), true);
+  const paper = new Bot(cfg({ loops: { ...cfg().loops, includeUnlisted: true } }), { chain: mockChain(), dataDir: tmp(), notifier });
+  assert.strictEqual(paper.unlistedAllowed(), true);
+});

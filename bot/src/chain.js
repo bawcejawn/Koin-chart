@@ -19,9 +19,32 @@ const POOL_ABI = require(path.join(__dirname, '../../contracts/pool/build/pool-a
 const isOwn = id => typeof id === 'string' && id.startsWith('own:');
 const ownParts = id => { const [, c, a, b] = id.split(':'); return { c, a, b }; };
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Errors that mean "this node had a bad moment", not "the chain said no"
+const TRANSPORT = /invalid json|unexpected token|fetch failed|failed to fetch|ECONN|ETIMEDOUT|EAI_AGAIN|socket|network|timeout|<html|\b5\d\d\b|429|too many/i;
+
+// Node failover: koilib moves to the next node on an error; we retry with backoff instead of giving up,
+// so a public node's hiccup (rate limit page, 502) just rolls over to the next node.
+function resilient(provider, tries = 4) {
+  const raw = provider.call.bind(provider);
+  provider.onError = () => true; // let us decide
+  provider.call = async (method, params) => {
+    let last;
+    for (let i = 0; i < Math.max(tries, provider.rpcNodes.length + 1); i++) {
+      try { return await raw(method, params); } catch (e) {
+        last = e;
+        if (!TRANSPORT.test(String(e && e.message || e))) throw e; // a real chain error: don't retry
+        await sleep(Math.min(8000, 300 * 3 ** i));
+      }
+    }
+    throw last;
+  };
+  return provider;
+}
+
 function makeChain(rpcUrls, verifyUrls = []) {
-  const provider = new Provider(rpcUrls);
-  const verifiers = verifyUrls.map(u => new Provider([u]));
+  const provider = resilient(new Provider(rpcUrls));
+  const verifiers = verifyUrls.map(u => resilient(new Provider([u]), 2));
   const poolC = (c, prov = provider) => new Contract({ id: c, abi: POOL_ABI, provider: prov });
   const periphery = new Contract({ id: ADDR.PERIPHERY, abi: globalThis.PERIPHERY_ABI, provider });
   const tokenC = id => new Contract({ id: contractAddr(id), abi: globalThis.TOKEN_ABI, provider });
@@ -54,7 +77,16 @@ function makeChain(rpcUrls, verifyUrls = []) {
 
   const api = {
     provider, utils, ADDR,
-    async head() { const h = await provider.getHeadInfo(); return { height: Number(h.head_topology.height), id: h.head_topology.id }; },
+    async head() {
+      let h = await provider.getHeadInfo();
+      // a node that stopped syncing still answers; if its head is old, move to the next node
+      for (let i = 1; i < provider.rpcNodes.length && Date.now() - Number(h.head_block_time) > 90e3; i++) {
+        provider.currentNodeId = (provider.currentNodeId + 1) % provider.rpcNodes.length;
+        h = await provider.getHeadInfo();
+      }
+      return { height: Number(h.head_topology.height), id: h.head_topology.id, time: Number(h.head_block_time), node: provider.rpcNodes[provider.currentNodeId] };
+    },
+    get node() { return provider.rpcNodes[provider.currentNodeId]; },
     // token0 / token1 raw reserves (BigInt)
     async reserves(pair) { return reservesVia(provider, pair); },
     async token0(pair) {
@@ -139,4 +171,4 @@ function loadSigner(wif) {
   return Signer.fromWif(wif.trim());
 }
 
-module.exports = { makeChain, loadSigner, ADDR, LoopCore: globalThis.LoopCore, isOwn, ownParts, contractAddr };
+module.exports = { resilient, TRANSPORT, makeChain, loadSigner, ADDR, LoopCore: globalThis.LoopCore, isOwn, ownParts, contractAddr };

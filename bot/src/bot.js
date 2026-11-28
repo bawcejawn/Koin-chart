@@ -96,6 +96,10 @@ class Bot {
     return false;
   }
 
+  unlistedAllowed() {
+    return !!(this.cfg.loops.includeUnlisted && (!this.live || (this.cfg.botGuard && this.cfg.botGuard.active)));
+  }
+
   stopped() {
     if (this.cfg.paused || fs.existsSync(this.stopFile)) {
       this.logEvery('stopped', 600e3, `STOPPED: ${this.cfg.paused ? '"paused": true in config' : 'STOP file present'} - not trading. Delete the STOP file (or run resume-bot.bat) to resume.`);
@@ -185,7 +189,11 @@ class Bot {
     const [koindx, listed] = await Promise.all([fetchPairs(), fetchListed()]);
     const own = this.cfg.ownPools && this.cfg.ownPools.contract ? await this.chain.ownPools(this.cfg.ownPools.contract, this.cfg.ownPools.pairs || []) : [];
     const ownTokens = new Set(own.flatMap(p => [p.t0, p.t1]));
-    const allow = id => c.includeUnlisted || listed.has(id) || ownTokens.has(id) || (c.allowTokens || []).includes(id);
+    // Unlisted tokens run their own code inside our signed transaction. Live trading only allows them
+    // once the Bot Guard is on the bot's address (it blocks any contract but the router/our pool from moving funds).
+    const unlistedOk = this.unlistedAllowed();
+    const known = id => listed.has(id) || ownTokens.has(id) || (c.allowTokens || []).includes(id);
+    const allow = id => unlistedOk || known(id);
     const cands = LoopCore.findLoops([...koindx, ...own], c.starts, { maxHops: 4, minEdge: 1.003, minUsd: c.minPoolUsd, allowToken: allow })
       .map(l => ({ l, est: LoopCore.estimate(l) })).filter(x => x.est.profit > 0n)
       .sort((x, y) => (y.est.profit > x.est.profit ? 1 : -1)).slice(0, 12);
@@ -215,7 +223,8 @@ class Bot {
     const keep = BigInt(Math.round(c.keepProfitPct * 100));
     let minOut = plan.amountIn + plan.profit * keep / 10000n;
     if (minOut <= plan.amountIn) minOut = plan.amountIn + 1n;
-    const info = { path: pathIds, venues: plan.segs.map(sg => sg.venue), amountIn: toK(plan.amountIn), amountOut: toK(plan.amountOut), profit: toK(plan.profit), minOut: toK(minOut) };
+    const unlisted = pathIds.filter(t => !known(t));
+    const info = { unlisted: unlisted.length ? [...new Set(unlisted)] : undefined, path: pathIds, venues: plan.segs.map(sg => sg.venue), amountIn: toK(plan.amountIn), amountOut: toK(plan.amountOut), profit: toK(plan.profit), minOut: toK(minOut) };
     if (!(await this.verified(hops.map(h => h.pool), reals, 'loop ' + pathIds.join('>')))) return;
     if (this.live) {
       const ops = [];
@@ -343,10 +352,16 @@ function readKey(cfg) {
   return fs.readFileSync(f, 'utf8');
 }
 
-async function getJson(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${r.status} ${url}`);
-  return r.json();
+async function getJson(url, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`${r.status} ${url}`);
+      return await r.json();
+    } catch (e) { last = e; await new Promise(res => setTimeout(res, 500 * 3 ** i)); }
+  }
+  throw last;
 }
 async function fetchPairs() {
   const out = [];
