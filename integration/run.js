@@ -47,7 +47,7 @@ async function main() {
     const tx = new Transaction({ signer: s, provider, options: { rcLimit: '1000000000' } });
     for (const [fn, args] of ops) await tx.pushOperation(fn, args);
     const receipt = await tx.send();
-    await tx.wait();
+    await tx.wait('byBlock', 60000);
     return receipt;
   };
 
@@ -62,7 +62,7 @@ async function main() {
   for (const n of ['tETH', 'tUSDT', 'tUSDC']) {
     const c = new Contract({ id: keys[n].address, abi: TOKEN_ABI, provider, signer: keys[n], bytecode: fs.readFileSync(TOKEN_WASM) });
     const { transaction } = await c.deploy({ abi: JSON.stringify(TOKEN_ABI), authorizesCallContract: false, authorizesTransactionApplication: false, authorizesUploadContract: false });
-    await transaction.wait();
+    await transaction.wait('byBlock', 60000);
     tok[n] = keys[n].address;
     const mints = [owner, lp2, trader].map(s => [c.functions.mint, { to: s.address, value: (1000000n * E8).toString() }]);
     await send(keys[n], mints);
@@ -72,7 +72,7 @@ async function main() {
   // pool contract
   const poolDeploy = new Contract({ id: keys.pool.address, abi: POOL_ABI, provider, signer: keys.pool, bytecode: fs.readFileSync(POOL_WASM) });
   const dep = await poolDeploy.deploy({ abi: JSON.stringify(POOL_ABI), authorizesCallContract: false, authorizesTransactionApplication: false, authorizesUploadContract: false });
-  await dep.transaction.wait();
+  await dep.transaction.wait('byBlock', 60000);
   const POOL = keys.pool.address;
   const pool = (s) => new Contract({ id: POOL, abi: POOL_ABI, provider, signer: s });
   await expectFail('initialize without the contract key fails', () => send(stranger, [[pool(stranger).functions.initialize, { owner: stranger.address }]]));
