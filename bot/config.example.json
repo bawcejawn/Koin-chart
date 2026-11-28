@@ -1,6 +1,8 @@
 {
   "mode": "paper",
-  "rpc": ["https://api.koinos.io"],
+  "rpc": [
+    "https://api.koinos.io"
+  ],
   "producerAddress": "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd",
   "keyFile": "bot.key",
   "reserveKoin": 100,
@@ -15,7 +17,9 @@
   },
   "loops": {
     "enabled": true,
-    "starts": ["koin"],
+    "starts": [
+      "koin"
+    ],
     "minProfitKoin": 0.5,
     "keepProfitPct": 50,
     "includeUnlisted": false,
@@ -24,6 +28,7 @@
     "scanEverySec": 60
   },
   "paper": {
-    "startKoin": 1000
+    "startKoin": 1000,
+    "autoRefill": true
   }
 }

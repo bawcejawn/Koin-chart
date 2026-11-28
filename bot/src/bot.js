@@ -35,6 +35,14 @@ class Bot {
     console.log(line);
     fs.appendFileSync(path.join(this.dataDir, 'bot.log'), line + '\n');
   }
+  // same message at most once per `everyMs` (keeps the log readable when nothing changes)
+  logEvery(key, everyMs, msg, extra) {
+    this.quiet = this.quiet || new Map();
+    const last = this.quiet.get(key) || 0;
+    if (Date.now() - last < everyMs) return;
+    this.quiet.set(key, Date.now());
+    this.log(msg, extra);
+  }
   record(entry) {
     fs.appendFileSync(path.join(this.dataDir, 'ledger.jsonl'), JSON.stringify({ t: nowIso(), mode: this.cfg.mode, ...entry }, (k, v) => (typeof v === 'bigint' ? v.toString() : v)) + '\n');
   }
@@ -84,7 +92,15 @@ class Bot {
     const amountIn = best.amountIn < cap ? best.amountIn : cap;
     if (amountIn < fromK(c.minTradeKoin)) {
       this.stats.skipped++;
-      return this.log(`VHP edge ${edgePct.toFixed(2)}% but only ${toK(cap).toFixed(2)} KOIN spendable (reserve ${this.cfg.reserveKoin} KOIN). Top up the bot.`);
+      if (!this.live && this.cfg.paper.autoRefill) {
+        // paper test: pretend the owner topped the bot up, so a 2-day test measures every opportunity
+        this.paper.koin += fromK(this.cfg.paper.startKoin);
+        this.stats.refills = (this.stats.refills || 0) + 1;
+        this.record({ kind: 'paper-refill', koin: this.cfg.paper.startKoin, edgePct: +edgePct.toFixed(3) });
+        this.log(`(paper) top-up needed: refilled ${this.cfg.paper.startKoin} KOIN (refill #${this.stats.refills})`);
+        return;
+      }
+      return this.logEvery('topup', 600e3, `VHP edge ${edgePct.toFixed(2)}% but only ${toK(cap).toFixed(2)} KOIN spendable (reserve ${this.cfg.reserveKoin} KOIN). Top up the bot.`);
     }
     const out = LoopCore.simulate(hop, amountIn);
     if (out <= amountIn) return;
@@ -193,7 +209,7 @@ class Bot {
     const s = this.stats;
     return {
       since: s.startedAt, buys: s.buys, koinSpent: toK(s.koinSpent), vhpGot: toK(s.vhpGot), extraVhpVsBurn: toK(s.vhpGot - s.koinSpent),
-      loops: s.loops, loopProfitKoin: toK(s.loopProfit), skipped: s.skipped, errors: s.errors,
+      loops: s.loops, loopProfitKoin: toK(s.loopProfit), skipped: s.skipped, errors: s.errors, refills: s.refills || 0,
       ...(this.live ? {} : { paperKoin: toK(this.paper.koin), paperVhpSent: toK(this.paper.sentVhp) }),
     };
   }
@@ -209,7 +225,7 @@ class Bot {
       await this.loopCheck();
     } catch (e) {
       this.stats.errors++;
-      this.log('error: ' + (e && e.message ? e.message : e));
+      this.logEvery('err:' + String(e && e.message ? e.message : e).slice(0, 60), 300e3, 'error: ' + (e && e.message ? e.message : e));
     } finally { this.busy = false; }
   }
 
@@ -217,9 +233,16 @@ class Bot {
     this.log(`started. address=${this.address} producer=${this.cfg.producerAddress} reserve=${this.cfg.reserveKoin} KOIN minEdge=${this.cfg.vhp.minEdgePct}%`);
     if (this.live) await this.lowBalanceCheck();
     setInterval(() => this.tick(), this.cfg.pollMs);
-    setInterval(() => { this.log('summary', this.summary()); fs.writeFileSync(path.join(this.dataDir, 'summary.json'), JSON.stringify(this.summary(), null, 2)); }, 3600e3);
+    setInterval(() => { this.log('summary', this.summary()); this.writeSummary(); }, 3600e3);
     if (this.live) setInterval(() => this.lowBalanceCheck().catch(() => {}), 600e3);
+    const stop = () => { this.writeSummary(); process.exit(0); };
+    process.on('SIGTERM', stop);
+    process.on('SIGINT', stop);
     this.tick();
+  }
+
+  writeSummary() {
+    try { fs.writeFileSync(path.join(this.dataDir, 'summary.json'), JSON.stringify(this.summary(), null, 2)); } catch (e) {}
   }
 }
 

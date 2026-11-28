@@ -13,6 +13,7 @@ const CFG = {
   loop: { minKoin: env('LOOP_MIN_KOIN', '25'), cooldownH: env('LOOP_COOLDOWN_H', '6') },
   xchain: { netPct: env('XCHAIN_NET_PCT', '5'), cooldownH: env('XCHAIN_COOLDOWN_H', '12') },
   maxPerDay: env('MAX_ALERTS_PER_DAY', '6'),
+  bot: { minKoin: env('BOT_LOW_KOIN', '150'), cooldownH: env('BOT_COOLDOWN_H', '24') },
 };
 const REPO = process.env.GITHUB_REPOSITORY || 'bawcejawn/Koin-chart';
 const TOKEN = process.env.GH_TOKEN;
@@ -58,6 +59,30 @@ async function checkVhp() {
       `Best amount: **${f(best)} KOIN** → about ${f(out)} VHP (**+${f(out - best)} VHP** vs burning).`,
       `Open the page and use **Buy best amount**: ${PAGE}#buy`].join('\n\n'),
     closeNote: `edge is back to ${edge.toFixed(2)}%`,
+  };
+}
+
+// ---------- 4. Bot needs a top-up ----------
+const BOT_ADDRESS = (process.env.BOT_ADDRESS || '').trim();
+const KOIN = '19GYjDBVXU7keLbYvMLazsGQn3GTWHjHkK';
+function b58decode(str) {
+  const A = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  let n = 0n; for (const c of str) { const v = A.indexOf(c); if (v < 0) throw new Error('bad address'); n = n * 58n + BigInt(v); }
+  const bytes = []; while (n > 0n) { bytes.unshift(Number(n & 255n)); n >>= 8n; }
+  for (const c of str) { if (c !== '1') break; bytes.unshift(0); }
+  return Buffer.from(bytes);
+}
+async function checkBot() {
+  const addr = b58decode(BOT_ADDRESS);
+  const args = Buffer.concat([Buffer.from([0x0a, addr.length]), addr]).toString('base64url');
+  const r = await rpc('chain.read_contract', { contract_id: KOIN, entry_point: 0x5c721497, args });
+  const koin = Number(pb(Buffer.from(r.result || '', 'base64url'))[1] || 0n) / 1e8;
+  return {
+    open: koin < CFG.bot.minKoin, value: koin,
+    title: `Bot needs KOIN: ${f(koin)} left`,
+    body: [`The bot address \`${BOT_ADDRESS}\` has **${f(koin)} KOIN** (alert below ${CFG.bot.minKoin}). It always keeps 100 KOIN, so it can only trade above that.`,
+      `Send KOIN to \`${BOT_ADDRESS}\` to keep it buying VHP and running loops.`].join('\n\n'),
+    closeNote: `balance is back to ${f(koin)} KOIN`,
   };
 }
 
@@ -131,7 +156,7 @@ async function gh(method, path, body) {
   if (!r.ok && r.status !== 422) throw new Error(`GitHub ${method} ${path}: ${r.status} ${await r.text()}`);
   return r.status === 204 ? null : r.json();
 }
-const LABELS = { vhp: 'vhp-alert', loop: 'loop-alert', xchain: 'xchain-alert' };
+const LABELS = { vhp: 'vhp-alert', loop: 'loop-alert', xchain: 'xchain-alert', bot: 'bot-topup' };
 
 async function handle(type, res) {
   const label = LABELS[type];
@@ -160,7 +185,7 @@ async function handle(type, res) {
   return 'opened';
 }
 
-const checks = { vhp: checkVhp, loop: checkLoops, xchain: checkXchain };
+const checks = { vhp: checkVhp, loop: checkLoops, xchain: checkXchain, ...(BOT_ADDRESS ? { bot: checkBot } : {}) };
 const summary = [];
 let failed = 0;
 for (const [type, fn] of Object.entries(checks)) {
