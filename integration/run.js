@@ -108,11 +108,12 @@ async function main() {
     ...approve(p.b, s, amtB.toString()),
     [pool(s).functions.add_liquidity, { from: s.address, token_a: p.a, token_b: p.b, amount_a: amtA.toString(), amount_b: amtB.toString(), min_shares: '1' }],
   ]);
+  const poolKoinStart = await balance(KOIN, POOL); // the contract key's own tKOIN (for mana), not pool money
   for (const p of plan) await addLiq(owner, p, p.amtA, p.amtB);
   const getPool = async (a, b) => (await pool(owner).functions.get_pool({ token_a: a, token_b: b })).result;
   let p1 = await getPool(KOIN, tok.tUSDT);
   check('KOIN/tUSDT seeded', p1 && p1.exists && big(p1.reserve_a) + big(p1.reserve_b) === 150n * E8 + 285000000n, p1);
-  check('pool holds the tokens', (await balance(KOIN, POOL)) === 450n * E8);
+  check('pool holds the deposited KOIN', (await balance(KOIN, POOL)) - poolKoinStart === 450n * E8);
 
   // Info only: on Koinos a token may accept a transfer the owner signed even without an allowance.
   try {
@@ -178,7 +179,8 @@ async function main() {
     const koinIsA = s.token_a === KOIN;
     koinReserves += big(koinIsA ? s.reserve_a : s.reserve_b) + big(koinIsA ? s.owner_fees_a : s.owner_fees_b);
   }
-  check('pool KOIN balance matches its books', (await balance(KOIN, POOL)) === koinReserves, { onChain: k(await balance(KOIN, POOL)), books: k(koinReserves) });
+  const held = (await balance(KOIN, POOL)) - poolKoinStart;
+  check('pool KOIN balance matches its books', held === koinReserves, { held: k(held), books: k(koinReserves) });
 
   lk.stopNode();
   const report = { when: new Date().toISOString(), pool: POOL, tokens: tok, koin: KOIN, passed: results.length - failures, failed: failures, results };
