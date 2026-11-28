@@ -49,9 +49,14 @@ jobs:
         timeout-minutes: 15
         env:
           JSONRPC_TAG: v1.0.0   # local-koinos 0.4.16 ships ".env" with a typo ("v1.0.0.")
+          KEEP_NODE: '1'        # leave the chain up for the page test
+      - name: Pools page test (drives pools.html against the same chain)
+        run: node page.js
+        working-directory: integration
+        timeout-minutes: 10
       - name: Node logs (on failure)
         if: failure()
         run: docker compose -p localkoinos logs --tail 60 || true
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: local-chain-report, path: integration/report.json, if-no-files-found: ignore }
+        with: { name: local-chain-report, path: 'integration/*report.json', if-no-files-found: ignore }

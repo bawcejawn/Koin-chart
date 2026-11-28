@@ -1,2 +1,4 @@
 node_modules/
 report.json
+deploy.json
+page-report.json

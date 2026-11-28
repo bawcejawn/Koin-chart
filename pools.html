@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Koin-chart pools · trade and earn on Koinos</title>
+<meta name="description" content="Swap KOIN, vETH, vUSDT and vUSDC, and earn fees as a liquidity provider. Fixed fees, set when each pool was created.">
+<link rel="stylesheet" href="css/base.css?v=1">
+<style>
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.field label{font-size:12px;color:var(--mute)}
+.inrow{display:flex;gap:8px}
+.inrow input{flex:1;font:inherit;font-size:18px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--ink);min-height:46px;width:100%}
+.inrow select{font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--ink);min-height:46px}
+.inrow input:focus-visible,.inrow select:focus-visible{outline:2px solid var(--acc)}
+.hint{font-size:12px;color:var(--mute);display:flex;justify-content:space-between;gap:8px}
+.hint button{background:none;border:0;color:var(--acc);font:inherit;font-size:12px;cursor:pointer;padding:0}
+.flip{display:block;margin:-2px auto;background:#232733;border:1px solid var(--line);color:var(--ink);border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:16px}
+.tabs{display:flex;gap:4px;margin-bottom:6px}
+.tabs button{background:none;border:1px solid var(--line);color:var(--mute);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.tabs button.on{color:var(--ink);background:#232733}
+.notice{border:1px solid #3a2a17;background:#21190f;color:#ffcf99;border-radius:10px;padding:12px 14px;font-size:14px;margin:12px max(3vw,14px) 0}
+.notice b{color:#ffe2bf}
+.feeTag{font-size:11px;border-radius:4px;padding:2px 6px;background:#1f2a2a;color:#7fd8cf}
+input[type=range]{width:100%;accent-color:var(--up)}
+.owner{border-color:#4a3a20}
+</style>
+</head>
+<body>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div class="top">
+<header>
+  <h1>Koin-chart pools<small>Swap and earn fees on Koinos · <a href="./">back to the VHP/KOIN chart</a></small></h1>
+  <div class="stat"><b id="sTvl">—</b><span>Total liquidity (USD)</span></div>
+  <div class="stat"><b id="sPools">—</b><span>Pools open</span></div>
+  <div class="stat"><b id="sKoin">—</b><span>KOIN price (USD)</span></div>
+</header>
+  <div class="wallet">
+    <button class="btn primary" id="wConnect" type="button">Connect Kondor wallet</button>
+    <div id="wInfo" hidden>
+      <div class="wTop"><span class="dot"></span><span id="wAddr"></span><button class="link" id="wDisconnect" type="button">Disconnect</button></div>
+      <div class="wBal" id="wBal"></div>
+    </div>
+  </div>
+</div>
+
+<div class="notice" id="notDeployed" hidden><b>Opening soon.</b> The pool contract isn't deployed yet, so trading is off. Below is the plan: KOIN with vETH, vUSDT and vUSDC at a 3% fee, and vETH pairs at 1%.</div>
+
+<section class="sec" id="list">
+  <div class="secHead"><h2>Pools</h2><p>Each pool's fee is fixed when it's created and can never change (3% maximum). 90% of every fee stays in the pool for liquidity providers; 10% goes to the pool operator.</p></div>
+  <div class="panel scroll"><table>
+    <thead><tr><th>Pool</th><th>Fee</th><th>Reserves</th><th>Price</th><th>Liquidity (USD)</th><th>Your share</th></tr></thead>
+    <tbody id="pBody"><tr><td colspan="6" class="empty">Loading pools…</td></tr></tbody>
+  </table></div>
+</section>
+
+<section class="sec" id="trade">
+  <div class="pgrid">
+    <div class="panel">
+      <h3 style="margin:0 0 4px">Swap</h3>
+      <div class="field"><label for="sIn">You pay</label>
+        <div class="inrow"><input id="sIn" inputmode="decimal" placeholder="0.0" autocomplete="off"><select id="sFrom"></select></div>
+        <div class="hint"><span id="sFromBal"></span><button type="button" id="sMax">Max</button></div></div>
+      <button class="flip" id="sFlip" type="button" aria-label="Swap direction">⇅</button>
+      <div class="field"><label for="sOut">You get (estimate)</label>
+        <div class="inrow"><input id="sOut" readonly placeholder="0.0"><select id="sTo"></select></div></div>
+      <div class="kv" id="sInfo"></div>
+      <button class="btn primary wide" id="sGo" type="button" disabled>Enter an amount</button>
+      <p class="status" style="margin:8px 0 0">Slippage limit <input id="slip" type="number" step="0.1" min="0.1" max="20" value="0.5" style="width:64px;font:inherit;background:#0f1115;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 6px">%. If the price moves more than this before your trade lands, it cancels and nothing is traded.</p>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 4px">Liquidity</h3>
+      <div class="tabs"><button type="button" class="on" data-t="add">Add</button><button type="button" data-t="remove">Remove</button></div>
+      <div class="field"><label for="lPool">Pool</label><div class="inrow"><select id="lPool" style="flex:1"></select></div></div>
+      <div id="lAdd">
+        <div class="field"><label for="lA" id="lALbl">Amount</label><div class="inrow"><input id="lA" inputmode="decimal" placeholder="0.0"></div><div class="hint"><span id="lABal"></span><button type="button" id="lAMax">Max</button></div></div>
+        <div class="field"><label for="lB" id="lBLbl">Amount</label><div class="inrow"><input id="lB" inputmode="decimal" placeholder="0.0"></div><div class="hint"><span id="lBBal"></span><span id="lBNote"></span></div></div>
+        <div class="kv" id="lInfo"></div>
+        <button class="btn primary wide" id="lGo" type="button" disabled>Enter amounts</button>
+      </div>
+      <div id="lRem" hidden>
+        <div class="field"><label for="rPct">Remove <b id="rPctLbl">50%</b> of your shares</label><input id="rPct" type="range" min="1" max="100" value="50"></div>
+        <div class="kv" id="rInfo"></div>
+        <button class="btn primary wide" id="rGo" type="button" disabled>Remove liquidity</button>
+      </div>
+    </div>
+
+    <div class="panel owner" id="ownerBox" hidden>
+      <h3 style="margin:0 0 4px">Owner</h3>
+      <p class="status" style="margin:0 0 8px">Only the owner's wallet sees this. Fees set here are permanent.</p>
+      <div class="field"><label>Create a pool</label>
+        <div class="inrow"><select id="cA"></select><select id="cB"></select><select id="cFee"><option value="300">3%</option><option value="100">1%</option><option value="30">0.3%</option></select></div></div>
+      <button class="btn wide" id="cGo" type="button">Create pool</button>
+      <h3 class="sub">Owner fees waiting to be claimed</h3>
+      <div class="scroll"><table><tbody id="feeBody"></tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="acts">
+  <div class="secHead"><h2>Your activity</h2><p>Trades made from this browser.</p></div>
+  <div class="panel scroll"><table><thead><tr><th>When</th><th>What</th><th>Status</th><th>Tx</th></tr></thead><tbody id="aBody"></tbody></table></div>
+</section>
+
+<p class="foot">Contract: <span id="fContract">not deployed</span>. The page never sees your keys: every transaction is shown to you first, then signed in Kondor. Trades carry an on-chain minimum, so a trade that would get less than you approved cancels itself. Pools are new and small; prices can move a lot with size. Not financial advice.</p>
+
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="mBox">
+    <h3 class="mTitle" id="mTitle"></h3>
+    <p class="mIntro"></p>
+    <div class="kv mRows"></div>
+    <p class="mWarn" hidden></p>
+    <div class="mBtns"><button class="btn mNo" type="button">Cancel</button><button class="btn primary mOk" type="button">Confirm in Kondor</button></div>
+  </div>
+</div>
+
+<script src="vendor/koilib-9.4.1.min.js"></script>
+<script src="vendor/kondor-js-0.4.3.min.js"></script>
+<script src="js/abi.js?v=1"></script>
+<script src="js/poolabi.js?v=1"></script>
+<script src="js/pools-config.js?v=1"></script>
+<script src="js/pools.js?v=1"></script>
+</body>
+</html>

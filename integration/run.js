@@ -182,7 +182,8 @@ async function main() {
   const held = (await balance(KOIN, POOL)) - poolKoinStart;
   check('pool KOIN balance matches its books', held === koinReserves, { held: k(held), books: k(koinReserves) });
 
-  lk.stopNode();
+  fs.writeFileSync(path.join(__dirname, 'deploy.json'), JSON.stringify({ rpc: RPC, pool: POOL, tokens: tok, koin: KOIN, owner: accounts[0].wif, lp: accounts[1].wif, trader: accounts[2].wif }, null, 2));
+  if (!process.env.KEEP_NODE) lk.stopNode();
   const report = { when: new Date().toISOString(), pool: POOL, tokens: tok, koin: KOIN, passed: results.length - failures, failed: failures, results };
   fs.writeFileSync(path.join(__dirname, 'report.json'), JSON.stringify(report, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Local-chain test: ${report.passed} passed, ${failures} failed\n\n` + results.map(r => `- ${r.ok ? '✅' : '❌'} ${r.name}`).join('\n') + '\n');
