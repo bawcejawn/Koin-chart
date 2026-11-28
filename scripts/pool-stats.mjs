@@ -75,11 +75,13 @@ async function scout(pairs) {
     return { ...p, wk, turnover: wk != null ? wk / p.usd : null, feesAt3: wk != null ? wk * 0.003 * 10 : null };
   });
   // 1) busy pairs: lots of weekly volume for their liquidity -> a deeper pool of ours could take part of that flow
-  const busy = rows.filter(r => r.wk).sort((x, y) => y.turnover - x.turnover).slice(0, 5);
+  const busy = rows.filter(r => r.wk && !['vhp', 'VHP', 'KOINDX'].some(x => [r.t0, r.s0, r.t1, r.s1].includes(x))).sort((x, y) => y.turnover - x.turnover).slice(0, 5);
   // 2) missing pairs: two well-funded listed tokens with no direct KoinDX pair -> traders route through 2 hops today
   const depth = new Map();
   for (const p of rows) for (const [t, s] of [[p.t0, p.s0], [p.t1, p.s1]]) { const d = depth.get(t) || { s, usd: 0 }; d.usd += p.usd; depth.set(t, d); }
-  const big = [...depth].filter(([t, d]) => d.usd >= 50 && t !== 'vhp') // no VHP pools (your call).sort((a, b) => b[1].usd - a[1].usd).slice(0, 12);
+  // never suggest VHP (that's mining power) or KoinDX's own token; focus stays on the planned pairs
+  const SKIP = new Set(['vhp', 'VHP', 'KOINDX']);
+  const big = [...depth].filter(([t, d]) => d.usd >= 50 && !SKIP.has(t) && !SKIP.has(d.s)).sort((a, b) => b[1].usd - a[1].usd).slice(0, 12);
   const have = new Set(pairs.map(p => [p.t0, p.t1].sort().join('|')));
   const missing = [];
   for (let i = 0; i < big.length; i++) for (let j = i + 1; j < big.length; j++) {
