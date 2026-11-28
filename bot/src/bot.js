@@ -268,6 +268,7 @@ class Bot {
       if (l.start === 'koin') this.paper.koin += plan.profit; else this.paper.vhp += plan.profit;
     }
     this.stats.loops++; this.stats.loopProfit += plan.profit;
+    if (l.start === 'koin') this.addEarned(plan.profit, 'loop');
     this.log(`LOOP ${pathIds.join('>')} [${info.venues.join('+')}]: ${info.amountIn.toFixed(4)} -> ${info.amountOut.toFixed(4)} (+${info.profit.toFixed(4)})`, info.tx ? { tx: info.tx } : undefined);
     this.record({ kind: 'loop', ...info, round });
     if (round + 1 < (c.maxRounds ?? 10)) return this.loopCheck(round + 1);
@@ -393,23 +394,31 @@ class Bot {
     const tx = await this.chain.send(this.signer, ops);
     this.lastClaim = Date.now();
     this.record({ kind: 'fee-claim', usd: +usd.toFixed(2), pools: pools.length, tx: tx.id });
+    for (const p of pools) this.addEarned((p.tokenA === ADDR.KOIN ? p.feesA : 0n) + (p.tokenB === ADDR.KOIN ? p.feesB : 0n), 'fees');
     this.log(`CLAIMED owner fees from ${pools.length} pools (~$${usd.toFixed(2)})`, { tx: tx.id });
     if (f.compound !== false) await this.compound(op, pools).catch(e => this.log('compound skipped: ' + e.message));
     return { usd, pools: pools.length };
   }
 
-  // Reinvest the claimed fees as liquidity, with the shares credited to you (cfg.fees.sharesTo), so you can
-  // remove them any time from the pools page with your own wallet.
+  // KOIN the bot has EARNED (KOIN fees claimed + loop profits) and not yet put into the pools.
+  // Only this KOIN is ever added as liquidity: the KOIN you deposit for the bot is never used for that.
+  earnedFile() { return path.join(this.dataDir, 'earned.json'); }
+  get earned() {
+    if (this._earned === undefined) { try { this._earned = BigInt(JSON.parse(fs.readFileSync(this.earnedFile(), 'utf8')).koin); } catch (e) { this._earned = 0n; } }
+    return this._earned;
+  }
+  set earned(v) { this._earned = v < 0n ? 0n : v; try { fs.writeFileSync(this.earnedFile(), JSON.stringify({ koin: this._earned.toString(), at: new Date().toISOString() })); } catch (e) {} }
+  addEarned(v, why) { if (v > 0n) { this.earned = this.earned + v; this.record({ kind: 'earned', koin: toK(v), why, total: toK(this.earned) }); } }
+
+  // Reinvest the claimed fees as liquidity. The LP shares go to fees.liquidityWallet if set (a wallet of yours,
+  // so you can remove them any time from the pools page), otherwise they stay with the bot.
+  // Rules: never sell KOIN for this (KOIN is only ever sold into VHP above the burn rate), and only EARNED KOIN
+  // (fees + loop profits) goes into the KOIN pools, as much as is earned, no other cap.
   // - vETH/vUSDT, vETH/vUSDC: both sides come from fees.
-  // - KOIN pools: the fee token (vETH/vUSDT/vUSDC) is matched with KOIN from the bot, up to
-  //   fees.maxExtraKoinPerWeek beyond the KOIN fees themselves (gradual growth).
+  // - KOIN pools: the fee token is matched with earned KOIN. Unmatched leftovers wait for the next claim.
   async compound(op, pools) {
     const f = this.cfg.fees || {};
-    const sharesTo = f.sharesTo || this.cfg.producerAddress;
-    const weekStart = Date.now() - 7 * 864e5;
-    this.koinAdded = (this.koinAdded || []).filter(x => x.t > weekStart);
-    const used = () => this.koinAdded.reduce((a, x) => a + x.v, 0n);
-    const budget = fromK(f.maxExtraKoinPerWeek ?? 2000);
+    const sharesTo = f.liquidityWallet || undefined;
     for (const p of pools) {
       if (p.totalShares === 0n || p.reserveA === 0n || p.reserveB === 0n) continue;
       const koinSide = p.tokenA === ADDR.KOIN ? 'a' : p.tokenB === ADDR.KOIN ? 'b' : null;
@@ -423,17 +432,12 @@ class Bot {
         const held = await this.chain.balance(other, this.address);
         const rK = koinSide === 'a' ? p.reserveA : p.reserveB, rX = koinSide === 'a' ? p.reserveB : p.reserveA;
         let x = held, k = x * rK / rX;
-        const feeKoin = koinSide === 'a' ? p.feesA : p.feesB;
-        const extra = k > feeKoin ? k - feeKoin : 0n;
-        const room = budget - used();
         const spendable = this.spendable(await this.wallet());
-        const maxK = feeKoin + (room > 0n ? room : 0n);
-        const capK = maxK < spendable ? maxK : spendable;
+        const capK = this.earned < spendable ? this.earned : spendable;
         if (k > capK) { k = capK; x = k * rX / rK; }
         if (k <= 0n || x <= 0n) continue;
         if (koinSide === 'a') { a = k; b = x; } else { a = x; b = k; }
-        this.koinAdded.push({ t: Date.now(), v: k > feeKoin ? k - feeKoin : 0n });
-        void extra;
+        this.earned = this.earned - k;
       }
       if (!a || !b || a <= 0n || b <= 0n) continue;
       const sa = a * p.totalShares / p.reserveA, sb = b * p.totalShares / p.reserveB;
@@ -445,7 +449,7 @@ class Bot {
         await this.chain.addLiquidityOp(op.contract, this.address, p.tokenA, p.tokenB, a, b, minShares, sharesTo),
       ]);
       this.record({ kind: 'compound', tokenA: p.tokenA, tokenB: p.tokenB, a: toK(a), b: toK(b), sharesTo, tx: tx.id });
-      this.log(`REINVESTED fees into ${p.tokenA.slice(0, 6)}/${p.tokenB.slice(0, 6)} (shares to ${sharesTo.slice(0, 8)}…)`, { tx: tx.id });
+      this.log(`REINVESTED fees into ${p.tokenA.slice(0, 6)}/${p.tokenB.slice(0, 6)} (shares to ${(sharesTo || 'the bot').slice(0, 8)}…)`, { tx: tx.id });
     }
   }
 

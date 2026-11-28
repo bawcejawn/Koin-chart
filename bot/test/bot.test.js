@@ -263,7 +263,7 @@ test('auto-claim: claims all pools with fees once they pass $5, then compounds n
   assert.strictEqual(chain.sent.length, 2, 'then one compound transaction for the ETH/USDT pool');
   const add = chain.sent[1].find(o => o.add);
   assert.ok(add, 'adds liquidity');
-  assert.strictEqual(add.add[7], PRODUCER, 'shares go to you, not the bot');
+  assert.notStrictEqual(add.add[7], PRODUCER, 'never the producer address');
 });
 
 test('auto-claim waits while fees are under $5 and it has been less than a week', async () => {
@@ -313,4 +313,23 @@ test('with the Bot Guard on, trades use a one-time guard allowance instead of ap
   assert.strictEqual(ops[0].guard.caller, ADDR.PERIPHERY);
   assert.strictEqual(ops[0].guard.to, ADDR.VHP_PAIR);
   assert.ok(!ops.some(o => o.approve), 'no approve');
+});
+
+test('reinvesting into a KOIN pool uses only earned KOIN (fees + loop profits), never sells KOIN, shares to the liquidity wallet', async () => {
+  const chain = mockChain();
+  const USDT = '1USDTxxxxxxxxxxxxxxxxxxxxxxxxxxxx', LW = '1LiquidityWalletxxxxxxxxxxxxxxxxx';
+  chain.addLiquidityOp = async (...a) => ({ add: a });
+  chain.approveOp = async (t, o, v, sp) => ({ approve: [t, v, sp] });
+  chain.balance = async t => (t === USDT ? 3n * E8 : t === 'koin' ? 10000n * E8 : 0n);
+  chain.wallet = { koin: 10000n * E8, vhp: 0n, mana: 10000n * E8 };
+  const bot = new Bot(cfg({ mode: 'live', fees: { liquidityWallet: LW } }), { chain, dataDir: tmp(), notifier, signer: fakeSigner });
+  bot.address = fakeSigner.getAddress();
+  bot.earned = 50n * E8; // earned so far
+  await bot.compound({ contract: 'C' }, [{ tokenA: ADDR.KOIN, tokenB: USDT, feesA: 0n, feesB: 3n * E8, reserveA: 100000n * E8, reserveB: 2000n * E8, totalShares: 1000000n }]);
+  const add = chain.sent[0].find(o => o.add).add;
+  assert.strictEqual(add[4], 50n * E8, 'only the 50 earned KOIN, not the bot\'s other 9,950');
+  assert.strictEqual(add[5], 1n * E8, 'matched with 1 USDT; the other 2 wait for more earned KOIN');
+  assert.strictEqual(add[7], LW);
+  assert.strictEqual(bot.earned, 0n);
+  assert.ok(!chain.sent.flat().some(o => o.swap), 'no KOIN sold');
 });
