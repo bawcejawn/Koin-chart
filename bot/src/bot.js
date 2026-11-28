@@ -99,8 +99,16 @@ class Bot {
     return false;
   }
 
+  // Permission for `spender` (KoinDX router or our pool) to move exactly `value` of `token` to `to` in this transaction.
+  // With the Bot Guard on: a one-time guard allowance (nothing else can move the bot's tokens).
+  // Without it: an exact-amount approve on the token.
+  async spendOp(token, spender, to, value) {
+    if (this.guardOn) return this.chain.guardAllowanceOp(this.address, token, spender, to, value);
+    return this.chain.approveOp(token, this.address, value, spender);
+  }
+
   unlistedAllowed() {
-    return !!(this.cfg.loops.includeUnlisted && (!this.live || (this.cfg.botGuard && this.cfg.botGuard.active)));
+    return !!(this.cfg.loops.includeUnlisted && (!this.live || this.guardOn));
   }
 
   stopped() {
@@ -154,7 +162,7 @@ class Bot {
     if (!(await this.verified([ADDR.VHP_PAIR], [real], 'VHP buy'))) return;
     if (this.live) {
       const ops = [];
-      if ((await this.chain.allowance('koin', this.address)) < amountIn) ops.push(await this.chain.approveOp('koin', this.address, amountIn));
+      ops.push(await this.spendOp('koin', ADDR.PERIPHERY, ADDR.VHP_PAIR, amountIn));
       ops.push(await this.chain.swapOp(this.address, amountIn, minOut, ['koin', 'vhp']));
       const tx = await this.chain.send(this.signer, ops);
       info.tx = tx.id;
@@ -241,7 +249,7 @@ class Bot {
       plan.segs.forEach((sg, i) => { sg.minOut = i === plan.segs.length - 1 ? minOut : sg.minOut; });
       for (const sg of plan.segs) {
         const spender = sg.venue === 'own' ? ownParts(sg.pool).c : ADDR.PERIPHERY;
-        ops.push(await this.chain.approveOp(sg.tokens[0], this.address, sg.amountIn, spender));
+        ops.push(await this.spendOp(sg.tokens[0], spender, sg.venue === 'own' ? spender : sg.hops[0].pool, sg.amountIn));
         ops.push(sg.venue === 'own'
           ? await this.chain.ownSwapOp(spender, this.address, sg.tokens[0], sg.tokens[1], sg.amountIn, sg.minOut)
           : await this.chain.swapOp(this.address, sg.amountIn, sg.minOut, sg.tokens));
@@ -340,7 +348,12 @@ class Bot {
 
   async run() {
     this.log(`started. address=${this.address} producer=${this.cfg.producerAddress} reserve=${this.cfg.reserveKoin} KOIN minEdge=${this.cfg.vhp.minEdgePct}%`);
-    if (this.live) await this.lowBalanceCheck();
+    if (this.live) {
+      this.guardOn = await this.chain.guardActive(this.address);
+      this.log(this.guardOn ? 'Bot Guard is ON: only the exact amounts the bot approves per trade can leave this address.'
+        : 'Bot Guard is OFF: trading listed tokens only. Run install-guard.bat to turn it on.');
+      await this.lowBalanceCheck();
+    }
     setInterval(() => this.tick(), this.cfg.pollMs);
     setInterval(() => { this.log('summary', this.summary()); this.writeSummary(); }, 3600e3);
     if (this.live) setInterval(() => this.lowBalanceCheck().catch(() => {}), 600e3);
@@ -399,8 +412,8 @@ class Bot {
       const minShares = shares * 995n / 1000n;
       if (minShares <= 0n) continue;
       const tx = await this.chain.send(this.signer, [
-        await this.chain.approveOp(p.tokenA, this.address, a, op.contract),
-        await this.chain.approveOp(p.tokenB, this.address, b, op.contract),
+        await this.spendOp(p.tokenA, op.contract, op.contract, a),
+        await this.spendOp(p.tokenB, op.contract, op.contract, b),
         await this.chain.addLiquidityOp(op.contract, this.address, p.tokenA, p.tokenB, a, b, minShares),
       ]);
       this.record({ kind: 'compound', tokenA: p.tokenA, tokenB: p.tokenB, a: toK(a), b: toK(b), tx: tx.id });

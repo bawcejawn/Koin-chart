@@ -204,7 +204,7 @@ test('node failover: a bad public-node response is retried on the next node, a r
 test('live refuses unlisted-token loops until the Bot Guard is active', () => {
   const live = new Bot(cfg({ mode: 'live', loops: { ...cfg().loops, includeUnlisted: true } }), { chain: mockChain(), dataDir: tmp(), notifier, signer: fakeSigner });
   assert.strictEqual(live.unlistedAllowed(), false);
-  live.cfg.botGuard = { active: true };
+  live.guardOn = true;
   assert.strictEqual(live.unlistedAllowed(), true);
   const paper = new Bot(cfg({ loops: { ...cfg().loops, includeUnlisted: true } }), { chain: mockChain(), dataDir: tmp(), notifier });
   assert.strictEqual(paper.unlistedAllowed(), true);
@@ -297,4 +297,18 @@ test('monthly proof report: one CSV row per trade with its link, and a count of 
   const csv = fs.readFileSync(r.file, 'utf8');
   assert.match(csv, /koinosblocks\.com\/tx\/0xaa/);
   assert.doesNotMatch(csv, /0xcc/);
+});
+
+test('with the Bot Guard on, trades use a one-time guard allowance instead of approve', async () => {
+  const chain = mockChain();
+  chain.guardAllowanceOp = async (bot, token, caller, to, value) => ({ guard: { token, caller, to, value } });
+  const bot = new Bot(cfg({ mode: 'live' }), { chain, dataDir: tmp(), notifier, signer: fakeSigner });
+  bot.signer = fakeSigner; bot.address = fakeSigner.getAddress(); bot.guardOn = true;
+  chain.wallet = { koin: 1000n * E8, vhp: 0n, mana: 1000n * E8 };
+  await bot.vhpCheck();
+  const ops = chain.sent[0];
+  assert.ok(ops[0].guard, 'first op is the guard allowance');
+  assert.strictEqual(ops[0].guard.caller, ADDR.PERIPHERY);
+  assert.strictEqual(ops[0].guard.to, ADDR.VHP_PAIR);
+  assert.ok(!ops.some(o => o.approve), 'no approve');
 });
