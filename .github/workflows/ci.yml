@@ -40,6 +40,8 @@ jobs:
         run: |
           if ! command -v docker-compose >/dev/null; then printf '#!/bin/sh\nexec docker compose "$@"\n' | sudo tee /usr/local/bin/docker-compose >/dev/null; sudo chmod +x /usr/local/bin/docker-compose; fi
           docker-compose version
+      - name: Pin RabbitMQ 3.13 (RabbitMQ 4 refuses the queues Koinos uses)
+        run: docker pull -q rabbitmq:3.13-alpine && docker tag rabbitmq:3.13-alpine rabbitmq:alpine
       - run: npm ci --no-audit --no-fund
         working-directory: integration
       - run: npm test
