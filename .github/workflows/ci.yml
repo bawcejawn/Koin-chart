@@ -33,7 +33,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: pool-contract
     env:
-      CHAIN_TAG: latest   # newer chain (mainnet has get_contract_metadata; local-koinos pins v1.0.2)
+      # newer Koinos (mainnet has get_contract_metadata; local-koinos pins 2022-era v1.0.x)
+      CHAIN_TAG: latest
+      MEMPOOL_TAG: latest
+      BLOCK_STORE_TAG: latest
+      JSONRPC_TAG: latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,7 +54,6 @@ jobs:
         working-directory: integration
         timeout-minutes: 15
         env:
-          JSONRPC_TAG: v1.0.0   # local-koinos 0.4.16 ships ".env" with a typo ("v1.0.0.")
           KEEP_NODE: '1'        # leave the chain up for the page test
       - name: Pools page test (drives pools.html against the same chain)
         run: node page.js
