@@ -261,7 +261,9 @@ test('auto-claim: claims all pools with fees once they pass $5, then compounds n
   assert.strictEqual(chain.sent[0].length, 2, 'one transaction, two claims');
   assert.ok(chain.sent[0].every(o => o.claim[2] === bot.address));
   assert.strictEqual(chain.sent.length, 2, 'then one compound transaction for the ETH/USDT pool');
-  assert.ok(chain.sent[1].some(o => o.add));
+  const add = chain.sent[1].find(o => o.add);
+  assert.ok(add, 'adds liquidity');
+  assert.strictEqual(add.add[7], PRODUCER, 'shares go to you, not the bot');
 });
 
 test('auto-claim waits while fees are under $5 and it has been less than a week', async () => {

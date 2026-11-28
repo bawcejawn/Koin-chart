@@ -146,8 +146,10 @@ function makeChain(rpcUrls, verifyUrls = []) {
       const { operation } = await poolC(contract).functions.claim_owner_fees({ token_a: tokenA, token_b: tokenB, to }, { onlyOperation: true });
       return operation;
     },
-    async addLiquidityOp(contract, from, tokenA, tokenB, amountA, amountB, minShares) {
-      const { operation } = await poolC(contract).functions.add_liquidity({ from, token_a: tokenA, token_b: tokenB, amount_a: amountA.toString(), amount_b: amountB.toString(), min_shares: minShares.toString() }, { onlyOperation: true });
+    async addLiquidityOp(contract, from, tokenA, tokenB, amountA, amountB, minShares, sharesTo) {
+      const args = { from, token_a: tokenA, token_b: tokenB, amount_a: amountA.toString(), amount_b: amountB.toString(), min_shares: minShares.toString() };
+      if (sharesTo) args.shares_to = sharesTo;
+      const { operation } = await poolC(contract).functions.add_liquidity(args, { onlyOperation: true });
       return operation;
     },
     async feeSettings(contract) { return (await poolC(contract).functions.get_fee_settings()).result || {}; },
@@ -158,7 +160,7 @@ function makeChain(rpcUrls, verifyUrls = []) {
     async guardAllowanceOp(bot, token, caller, to, value) {
       const data = encodeTransfer(bot, to, value);
       const { operation } = await new Contract({ id: bot, abi: GUARD_ABI, provider }).functions.set_allowance({
-        type: 'transfer_token', contract_id: contractAddr(token), entry_point: 0x27f576ca, caller, data: utils.encodeBase64url(data),
+        type: 1 /* transfer_token */, contract_id: contractAddr(token), entry_point: 0x27f576ca, caller, data: utils.encodeBase64url(data),
       }, { onlyOperation: true });
       return operation;
     },

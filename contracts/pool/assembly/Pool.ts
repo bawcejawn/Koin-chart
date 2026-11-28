@@ -301,7 +301,8 @@ export class Pool {
     p.reserve_b += amountB;
     p.total_shares += minted;
     this.pools.put(key, p);
-    const skey = concat(key, args.from!);
+    const holder = args.shares_to && args.shares_to!.length > 0 ? args.shares_to! : args.from!;
+    const skey = concat(key, holder);
     const s = this.shares.get(skey)!;
     s.value += minted;
     this.shares.put(skey, s);
@@ -309,7 +310,7 @@ export class Pool {
     System.event(
       "pool.liquidity_event",
       Protobuf.encode(new pool.liquidity_event(args.from, p.token_a, p.token_b, amountA, amountB, minted, true), pool.liquidity_event.encode),
-      [args.from!]
+      [args.from!, holder]
     );
     this._sync(p);
     this._exit();

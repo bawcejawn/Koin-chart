@@ -398,26 +398,54 @@ class Bot {
     return { usd, pools: pools.length };
   }
 
-  // Put fee tokens back to work: for each non-KOIN pool where the bot now holds both tokens, add them as liquidity
-  // (the bot's KOIN stays for VHP buys and loops).
+  // Reinvest the claimed fees as liquidity, with the shares credited to you (cfg.fees.sharesTo), so you can
+  // remove them any time from the pools page with your own wallet.
+  // - vETH/vUSDT, vETH/vUSDC: both sides come from fees.
+  // - KOIN pools: the fee token (vETH/vUSDT/vUSDC) is matched with KOIN from the bot, up to
+  //   fees.maxExtraKoinPerWeek beyond the KOIN fees themselves (gradual growth).
   async compound(op, pools) {
+    const f = this.cfg.fees || {};
+    const sharesTo = f.sharesTo || this.cfg.producerAddress;
+    const weekStart = Date.now() - 7 * 864e5;
+    this.koinAdded = (this.koinAdded || []).filter(x => x.t > weekStart);
+    const used = () => this.koinAdded.reduce((a, x) => a + x.v, 0n);
+    const budget = fromK(f.maxExtraKoinPerWeek ?? 2000);
     for (const p of pools) {
-      if (p.tokenA === ADDR.KOIN || p.tokenB === ADDR.KOIN || p.totalShares === 0n) continue;
-      const [ha, hb] = await Promise.all([this.chain.balance(p.tokenA, this.address), this.chain.balance(p.tokenB, this.address)]);
-      // match the pool ratio with what we hold
-      let a = ha, b = p.reserveA ? ha * p.reserveB / p.reserveA : 0n;
-      if (b > hb) { b = hb; a = p.reserveB ? hb * p.reserveA / p.reserveB : 0n; }
-      if (a <= 0n || b <= 0n) continue;
-      const shares = (a * p.totalShares / p.reserveA) < (b * p.totalShares / p.reserveB) ? a * p.totalShares / p.reserveA : b * p.totalShares / p.reserveB;
-      const minShares = shares * 995n / 1000n;
+      if (p.totalShares === 0n || p.reserveA === 0n || p.reserveB === 0n) continue;
+      const koinSide = p.tokenA === ADDR.KOIN ? 'a' : p.tokenB === ADDR.KOIN ? 'b' : null;
+      let a, b;
+      if (!koinSide) {
+        const [ha, hb] = await Promise.all([this.chain.balance(p.tokenA, this.address), this.chain.balance(p.tokenB, this.address)]);
+        a = ha; b = ha * p.reserveB / p.reserveA;
+        if (b > hb) { b = hb; a = hb * p.reserveA / p.reserveB; }
+      } else {
+        const other = koinSide === 'a' ? p.tokenB : p.tokenA;
+        const held = await this.chain.balance(other, this.address);
+        const rK = koinSide === 'a' ? p.reserveA : p.reserveB, rX = koinSide === 'a' ? p.reserveB : p.reserveA;
+        let x = held, k = x * rK / rX;
+        const feeKoin = koinSide === 'a' ? p.feesA : p.feesB;
+        const extra = k > feeKoin ? k - feeKoin : 0n;
+        const room = budget - used();
+        const spendable = this.spendable(await this.wallet());
+        const maxK = feeKoin + (room > 0n ? room : 0n);
+        const capK = maxK < spendable ? maxK : spendable;
+        if (k > capK) { k = capK; x = k * rX / rK; }
+        if (k <= 0n || x <= 0n) continue;
+        if (koinSide === 'a') { a = k; b = x; } else { a = x; b = k; }
+        this.koinAdded.push({ t: Date.now(), v: k > feeKoin ? k - feeKoin : 0n });
+        void extra;
+      }
+      if (!a || !b || a <= 0n || b <= 0n) continue;
+      const sa = a * p.totalShares / p.reserveA, sb = b * p.totalShares / p.reserveB;
+      const minShares = (sa < sb ? sa : sb) * 995n / 1000n;
       if (minShares <= 0n) continue;
       const tx = await this.chain.send(this.signer, [
         await this.spendOp(p.tokenA, op.contract, op.contract, a),
         await this.spendOp(p.tokenB, op.contract, op.contract, b),
-        await this.chain.addLiquidityOp(op.contract, this.address, p.tokenA, p.tokenB, a, b, minShares),
+        await this.chain.addLiquidityOp(op.contract, this.address, p.tokenA, p.tokenB, a, b, minShares, sharesTo),
       ]);
-      this.record({ kind: 'compound', tokenA: p.tokenA, tokenB: p.tokenB, a: toK(a), b: toK(b), tx: tx.id });
-      this.log(`COMPOUNDED fees into ${p.tokenA.slice(0, 6)}/${p.tokenB.slice(0, 6)}`, { tx: tx.id });
+      this.record({ kind: 'compound', tokenA: p.tokenA, tokenB: p.tokenB, a: toK(a), b: toK(b), sharesTo, tx: tx.id });
+      this.log(`REINVESTED fees into ${p.tokenA.slice(0, 6)}/${p.tokenB.slice(0, 6)} (shares to ${sharesTo.slice(0, 8)}…)`, { tx: tx.id });
     }
   }
 

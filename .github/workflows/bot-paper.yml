@@ -39,8 +39,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # lets the paper bot send the 8 AM summary email
         run: |
           cp config.example.json config.json
-          # paper only: also count loops through unlisted tokens (what the Bot Guard unlocks), and go easy on the free public node: check every 20 s, loops every 5 min
-          node -e "const f='config.json',c=require('./'+f);c.loops.includeUnlisted=true;c.pollMs=20000;c.loops.scanEverySec=300;c.heartbeatMin=60;require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
+          # paper only: also count loops through unlisted tokens (what the Bot Guard unlocks), and go easy on the free public node: check every 5 minutes (every block once it runs on your own node)
+          node -e "const f='config.json',c=require('./'+f);c.loops.includeUnlisted=true;c.pollMs=300000;c.loops.scanEverySec=300;c.heartbeatMin=60;require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           mkdir -p data
           timeout "${{ github.event.inputs.minutes }}m" node src/index.js || true
           node -e "const fs=require('fs');const l=fs.existsSync('data/ledger.jsonl')?fs.readFileSync('data/ledger.jsonl','utf8').trim().split('\n').filter(Boolean).length:0;console.log('ledger entries:',l)"

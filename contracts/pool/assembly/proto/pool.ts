@@ -427,6 +427,12 @@ export namespace pool {
         writer.uint32(48);
         writer.uint64(message.min_shares);
       }
+
+      const unique_name_shares_to = message.shares_to;
+      if (unique_name_shares_to !== null) {
+        writer.uint32(58);
+        writer.bytes(unique_name_shares_to);
+      }
     }
 
     static decode(reader: Reader, length: i32): add_liquidity_arguments {
@@ -460,6 +466,10 @@ export namespace pool {
             message.min_shares = reader.uint64();
             break;
 
+          case 7:
+            message.shares_to = reader.bytes();
+            break;
+
           default:
             reader.skipType(tag & 7);
             break;
@@ -475,6 +485,7 @@ export namespace pool {
     amount_a: u64;
     amount_b: u64;
     min_shares: u64;
+    shares_to: Uint8Array | null;
 
     constructor(
       from: Uint8Array | null = null,
@@ -482,7 +493,8 @@ export namespace pool {
       token_b: Uint8Array | null = null,
       amount_a: u64 = 0,
       amount_b: u64 = 0,
-      min_shares: u64 = 0
+      min_shares: u64 = 0,
+      shares_to: Uint8Array | null = null
     ) {
       this.from = from;
       this.token_a = token_a;
@@ -490,6 +502,7 @@ export namespace pool {
       this.amount_a = amount_a;
       this.amount_b = amount_b;
       this.min_shares = min_shares;
+      this.shares_to = shares_to;
     }
   }
 

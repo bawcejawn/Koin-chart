@@ -70,5 +70,13 @@
     "repo": "bawcejawn/Koin-chart",
     "token": ""
   },
-  "paused": false
+  "paused": false,
+  "fees": {
+    "enabled": true,
+    "claimUsd": 5,
+    "checkEveryMin": 60,
+    "compound": true,
+    "sharesTo": "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd",
+    "maxExtraKoinPerWeek": 2000
+  }
 }

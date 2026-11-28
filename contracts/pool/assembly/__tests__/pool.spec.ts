@@ -256,4 +256,16 @@ describe("Pool", () => {
     const after = p.get_pool(new pool.pair_arguments(VETH, VUSDT));
     expect(after.owner_fees_a + after.owner_fees_b).toBe(0);
   });
+
+  it("add_liquidity can credit the shares to someone else (the bot reinvesting fees for the owner)", () => {
+    const p = setup(100);
+    const first = seed(p, 100 * E8, 300000 * E8).shares;
+    const ownerBefore = p.get_shares(new pool.shares_arguments(VETH, VUSDT, OWNER)).value;
+    authorize([USER]);
+    okCalls(2);
+    const r = p.add_liquidity(new pool.add_liquidity_arguments(USER, VETH, VUSDT, 10 * E8, 30000 * E8, 0, OWNER));
+    expect(r.shares).toBe((first + 1000) / 10);
+    expect(p.get_shares(new pool.shares_arguments(VETH, VUSDT, OWNER)).value).toBe(ownerBefore + r.shares);
+    expect(p.get_shares(new pool.shares_arguments(VETH, VUSDT, USER)).value).toBe(0);
+  });
 });

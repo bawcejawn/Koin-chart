@@ -165,6 +165,16 @@ async function main() {
   await expectFail('stranger cannot remove shares they do not own', () => send(stranger, [[pool(stranger).functions.remove_liquidity, { from: stranger.address, token_a: pE.a, token_b: pE.b, shares: '1', min_a: '0', min_b: '0' }]]));
   await expectFail('nobody can spend someone else\'s tokens through the pool', () => send(stranger, [[pool(stranger).functions.swap, { from: trader.address, token_in: KOIN, token_out: tok.tUSDT, amount_in: '100', min_out: '0' }]]));
 
+  // the bot reinvesting fees: it deposits, the shares are credited to you
+  const before = big((await pool(owner).functions.get_shares({ token_a: pE.a, token_b: pE.b, account: owner.address })).result?.value);
+  await send(lp2, [
+    ...approve(pE.a, lp2, 333333n), ...approve(pE.b, lp2, 20n * E8),
+    [pool(lp2).functions.add_liquidity, { from: lp2.address, token_a: pE.a, token_b: pE.b, amount_a: '333333', amount_b: (20n * E8).toString(), min_shares: '1', shares_to: owner.address }],
+  ]);
+  const after = big((await pool(owner).functions.get_shares({ token_a: pE.a, token_b: pE.b, account: owner.address })).result?.value);
+  const lpShares = big((await pool(lp2).functions.get_shares({ token_a: pE.a, token_b: pE.b, account: lp2.address })).result?.value);
+  check('a deposit can credit its shares to you (fee reinvesting)', after > before && lpShares === 0n, { gained: (after - before).toString() });
+
   // owner claims fees
   await expectFail('stranger cannot claim owner fees', () => send(stranger, [[pool(stranger).functions.claim_owner_fees, { token_a: KOIN, token_b: tok.tUSDT, to: stranger.address }]]));
   const koinBefore = await balance(KOIN, owner.address);

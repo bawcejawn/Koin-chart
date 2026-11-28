@@ -50,6 +50,7 @@ message add_liquidity_arguments {
   uint64 amount_a = 4 [jstype = JS_STRING];
   uint64 amount_b = 5 [jstype = JS_STRING];
   uint64 min_shares = 6 [jstype = JS_STRING];
+  bytes shares_to = 7 [(koinos.btype) = ADDRESS]; // optional: who receives the shares (default: from). Lets the bot add fees as liquidity owned by you.
 }
 
 message add_liquidity_result {
