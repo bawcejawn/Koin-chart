@@ -926,6 +926,57 @@ export namespace pool {
     }
   }
 
+  export class fee_settings {
+    static encode(message: fee_settings, writer: Writer): void {
+      const unique_name_fee_to = message.fee_to;
+      if (unique_name_fee_to !== null) {
+        writer.uint32(10);
+        writer.bytes(unique_name_fee_to);
+      }
+
+      const unique_name_collector = message.collector;
+      if (unique_name_collector !== null) {
+        writer.uint32(18);
+        writer.bytes(unique_name_collector);
+      }
+    }
+
+    static decode(reader: Reader, length: i32): fee_settings {
+      const end: usize = length < 0 ? reader.end : reader.ptr + length;
+      const message = new fee_settings();
+
+      while (reader.ptr < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1:
+            message.fee_to = reader.bytes();
+            break;
+
+          case 2:
+            message.collector = reader.bytes();
+            break;
+
+          default:
+            reader.skipType(tag & 7);
+            break;
+        }
+      }
+
+      return message;
+    }
+
+    fee_to: Uint8Array | null;
+    collector: Uint8Array | null;
+
+    constructor(
+      fee_to: Uint8Array | null = null,
+      collector: Uint8Array | null = null
+    ) {
+      this.fee_to = fee_to;
+      this.collector = collector;
+    }
+  }
+
   export class claim_arguments {
     static encode(message: claim_arguments, writer: Writer): void {
       const unique_name_token_a = message.token_a;

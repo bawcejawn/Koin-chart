@@ -121,6 +121,26 @@ function makeChain(rpcUrls, verifyUrls = []) {
       }
       return out;
     },
+    // owner fees waiting in each of our pools
+    async ownFees(contract, pairs) {
+      const out = [];
+      for (const [a, b] of pairs) {
+        const { result: r } = await poolC(contract).functions.get_pool({ token_a: contractAddr(a), token_b: contractAddr(b) });
+        if (!r || !r.exists) continue;
+        out.push({ tokenA: r.token_a, tokenB: r.token_b, feesA: BigInt(r.owner_fees_a || 0), feesB: BigInt(r.owner_fees_b || 0),
+          reserveA: BigInt(r.reserve_a || 0), reserveB: BigInt(r.reserve_b || 0), totalShares: BigInt(r.total_shares || 0) });
+      }
+      return out;
+    },
+    async claimOp(contract, tokenA, tokenB, to) {
+      const { operation } = await poolC(contract).functions.claim_owner_fees({ token_a: tokenA, token_b: tokenB, to }, { onlyOperation: true });
+      return operation;
+    },
+    async addLiquidityOp(contract, from, tokenA, tokenB, amountA, amountB, minShares) {
+      const { operation } = await poolC(contract).functions.add_liquidity({ from, token_a: tokenA, token_b: tokenB, amount_a: amountA.toString(), amount_b: amountB.toString(), min_shares: minShares.toString() }, { onlyOperation: true });
+      return operation;
+    },
+    async feeSettings(contract) { return (await poolC(contract).functions.get_fee_settings()).result || {}; },
     async ownSwapOp(contract, from, tokenIn, tokenOut, amountIn, minOut) {
       const { operation } = await poolC(contract).functions.swap({
         from, token_in: contractAddr(tokenIn), token_out: contractAddr(tokenOut), amount_in: amountIn.toString(), min_out: minOut.toString(),

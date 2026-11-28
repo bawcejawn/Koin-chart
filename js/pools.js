@@ -74,7 +74,11 @@
     }
     POOLS = out;
   }
-  async function loadOwner() { try { OWNER = pool ? (await pool.functions.get_owner()).result?.value || null : null; } catch (e) { OWNER = null; } }
+  let FEES = {};
+  async function loadOwner() {
+    try { OWNER = pool ? (await pool.functions.get_owner()).result?.value || null : null; } catch (e) { OWNER = null; }
+    try { FEES = pool ? (await pool.functions.get_fee_settings()).result || {} : {}; } catch (e) { FEES = {}; }
+  }
   async function loadBalances() {
     if (!W.address) return;
     const rows = await Promise.all(CFG.tokens.map(async t => [t.sym, big((await token(t.sym).functions.balanceOf({ owner: W.address })).result?.value)]));
@@ -127,7 +131,17 @@
     $('cA').innerHTML = opt(syms, $('cA').value || 'KOIN');
     $('cB').innerHTML = opt(syms, $('cB').value || 'vETH');
   }
+  function renderFeeSettings() {
+    $('fsNow').textContent = FEES.collector ? `Now: bot ${short(FEES.collector)} claims into ${short(FEES.fee_to)}` : 'Now: off (only you can claim)';
+  }
+  async function doFeeSettings() {
+    const a = $('fsAddr').value.trim();
+    if (!/^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(a)) throw new Error('That does not look like a Koinos address.');
+    if (!(await review({ title: 'Let the bot auto-claim fees', intro: 'The bot will claim the owner fees and can only send them to this same address. You can change or turn this off any time.', rows: [['Collector', short(a)], ['Fees go to', short(a)]] }))) return;
+    await send([await op(pool, 'set_fee_settings', { fee_to: a, collector: a })], 'Set auto-claim to ' + short(a));
+  }
   function renderFees() {
+    renderFeeSettings();
     const rows = POOLS.filter(p => p.ofA || p.ofB);
     $('feeBody').innerHTML = rows.length ? rows.map(p => `<tr><td>${p.A}/${p.B}</td><td>${fmt(fromRaw(p.ofA, T[p.A].dec), 6)} ${p.A} · ${fmt(fromRaw(p.ofB, T[p.B].dec), 6)} ${p.B}</td><td><button class="btn small" data-claim="${p.A}/${p.B}">Claim</button></td></tr>`).join('')
       : '<tr><td class="empty">No fees waiting yet.</td></tr>';
@@ -361,6 +375,7 @@
     $('lGo').onclick = guarded(doAdd);
     $('rPct').oninput = renderRem; $('rGo').onclick = guarded(doRemove);
     $('cGo').onclick = guarded(doCreate);
+    $('fsGo').onclick = guarded(doFeeSettings);
     $('feeBody').onclick = e => { const b = e.target.closest('[data-claim]'); if (b) guarded(doClaim)(b.dataset.claim); };
     let saved = null; try { saved = localStorage.getItem('kc-wallet'); } catch (e) {}
     if (saved) W.address = saved;

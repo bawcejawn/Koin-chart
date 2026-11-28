@@ -14,6 +14,7 @@ const OWNER_SPACE_ID = 0;
 const POOLS_SPACE_ID = 1;
 const SHARES_SPACE_ID = 2;
 const LOCK_SPACE_ID = 3;
+const FEES_SPACE_ID = 4;
 
 const MAX_FEE_BPS: u32 = 300; // 3%
 const OWNER_SHARE_BPS: u32 = 1000; // 10% of the fee
@@ -101,6 +102,14 @@ export class Pool {
     pool.uint64.decode,
     pool.uint64.encode,
     () => new pool.uint64(0)
+  );
+
+  feeSettings: Storage.Obj<pool.fee_settings> = new Storage.Obj(
+    this.contractId,
+    FEES_SPACE_ID,
+    pool.fee_settings.decode,
+    pool.fee_settings.encode,
+    () => new pool.fee_settings()
   );
 
   // ---------- helpers ----------
@@ -202,11 +211,39 @@ export class Pool {
   }
 
   /**
-   * Send the owner's accumulated fees for a pool to an address. Owner only.
+   * Owner only: who besides the owner may collect fees (collector), and where collected fees go (fee_to).
+   * @external
+   */
+  set_fee_settings(args: pool.fee_settings): pool.empty_object {
+    this._requireOwner();
+    this.feeSettings.put(args);
+    return new pool.empty_object();
+  }
+
+  /**
+   * @external
+   * @readonly
+   */
+  get_fee_settings(): pool.fee_settings {
+    return this.feeSettings.get()!;
+  }
+
+  /**
+   * Owner fees: the owner, or the fee collector (fees then go to fee_to).
    * @external
    */
   claim_owner_fees(args: pool.claim_arguments): pool.empty_object {
-    this._requireOwner();
+    // The owner claims to any address. The collector (if set) may claim too, but the fees then
+    // always go to fee_to, which only the owner can set.
+    const o = this.owner.get()!;
+    if (!o.value || o.value!.length == 0) fail("not initialized");
+    let to = args.to!;
+    if (!System.checkAuthority(authority.authorization_type.contract_call, o.value!)) {
+      const fs = this.feeSettings.get()!;
+      if (!fs.collector || fs.collector!.length == 0 || !fs.fee_to || fs.fee_to!.length == 0) fail("not authorized");
+      this._requireAuthority(fs.collector!);
+      to = fs.fee_to!;
+    }
     this._enter();
     const key = this._key(args.token_a!, args.token_b!);
     const p = this._getPool(args.token_a!, args.token_b!);
@@ -214,8 +251,8 @@ export class Pool {
     p.owner_fees_a = 0;
     p.owner_fees_b = 0;
     this.pools.put(key, p);
-    this._transfer(p.token_a!, this.contractId, args.to!, fa);
-    this._transfer(p.token_b!, this.contractId, args.to!, fb);
+    this._transfer(p.token_a!, this.contractId, to, fa);
+    this._transfer(p.token_b!, this.contractId, to, fb);
     this._exit();
     return new pool.empty_object();
   }

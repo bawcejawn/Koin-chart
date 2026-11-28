@@ -240,3 +240,36 @@ test('mana reserve: spendable keeps 5 KOIN of mana back for the next transaction
   const bot = new Bot(cfg(), { chain: mockChain(), dataDir: tmp(), notifier });
   assert.strictEqual(bot.spendable({ koin: 1000n * E8, mana: 50n * E8 }), 45n * E8);
 });
+
+test('auto-claim: claims all pools with fees once they pass $5, then compounds non-KOIN pairs', async () => {
+  const chain = mockChain();
+  const C = '1PoolContractxxxxxxxxxxxxxxxxxxxxx', ETH = '1ETHxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', USDT = '1USDTxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+  chain.feeSettings = async () => ({ collector: fakeSigner.getAddress(), fee_to: fakeSigner.getAddress() });
+  chain.ownFees = async () => [
+    { tokenA: ADDR.KOIN, tokenB: USDT, feesA: 300n * E8, feesB: 0n, reserveA: 1n, reserveB: 1n, totalShares: 1n },
+    { tokenA: ETH, tokenB: USDT, feesA: 100000n, feesB: 3n * E8, reserveA: 3333333n, reserveB: 100n * E8, totalShares: 1000000n },
+  ];
+  chain.claimOp = async (c, a, b, to) => ({ claim: [a, b, to] });
+  chain.addLiquidityOp = async (...a) => ({ add: a });
+  chain.approveOp = async (t, o, v, sp) => ({ approve: [t, v, sp] });
+  chain.balance = async t => (t === ETH ? 100000n : t === USDT ? 3n * E8 : 0n);
+  const bot = new Bot(cfg({ mode: 'live', ownPools: { contract: C, pairs: [] } }), { chain, dataDir: tmp(), notifier, signer: fakeSigner });
+  bot.address = fakeSigner.getAddress();
+  const usd = (t, raw) => (t === USDT ? 1 : t === ADDR.KOIN ? 0.02 : t === ETH ? 3000 : 0) * Number(raw) / 1e8;
+  const r = await bot.feeCheck(usd);
+  assert.ok(r && r.pools === 2, 'claimed both pools');
+  assert.strictEqual(chain.sent[0].length, 2, 'one transaction, two claims');
+  assert.ok(chain.sent[0].every(o => o.claim[2] === bot.address));
+  assert.strictEqual(chain.sent.length, 2, 'then one compound transaction for the ETH/USDT pool');
+  assert.ok(chain.sent[1].some(o => o.add));
+});
+
+test('auto-claim waits while fees are under $5 and it has been less than a week', async () => {
+  const chain = mockChain();
+  chain.feeSettings = async () => ({ collector: fakeSigner.getAddress(), fee_to: fakeSigner.getAddress() });
+  chain.ownFees = async () => [{ tokenA: ADDR.KOIN, tokenB: 'x', feesA: 10n * E8, feesB: 0n, reserveA: 1n, reserveB: 1n, totalShares: 1n }];
+  const bot = new Bot(cfg({ mode: 'live', ownPools: { contract: 'C', pairs: [] } }), { chain, dataDir: tmp(), notifier, signer: fakeSigner });
+  bot.address = fakeSigner.getAddress(); bot.lastClaim = Date.now();
+  assert.strictEqual(await bot.feeCheck(() => 0.2), null);
+  assert.strictEqual(chain.sent.length, 0);
+});

@@ -135,6 +135,13 @@ async function main() {
   o.$('cGo').click();
   await waitFor(() => o.w.KP.pools.some(x => (x.A + x.B).includes('vUSDT') && (x.A + x.B).includes('vUSDC')), 90000, 'new pool');
   check('owner creates a pool from the page (vUSDT/vUSDC 0.3%)', true);
+  const lpAddr = Signer.fromWif(D.lp).address;
+  set(o.$('fsAddr'), lpAddr);
+  o.$('fsGo').click();
+  await waitFor(() => confirmed(o, /^Set auto-claim/), 90000, 'fee settings confirmation');
+  const POOL_ABI = require('../contracts/pool/build/pool-abi.json');
+  const fsr = (await new Contract({ id: D.pool, abi: POOL_ABI, provider }).functions.get_fee_settings()).result || {};
+  check('owner sets the bot as fee collector from the page', fsr.collector === lpAddr && fsr.fee_to === lpAddr, fsr);
   check('no page errors (owner)', !o.errors.length, o.errors.slice(0, 3));
   o.close();
 }

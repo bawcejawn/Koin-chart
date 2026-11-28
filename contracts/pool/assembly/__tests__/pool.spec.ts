@@ -8,6 +8,7 @@ const USER = Base58.decode("1FkSxrCK6D3ELi2taw8QLgxPMBUnnoxfgy");
 const OTHER = Base58.decode("19dG7aZ6oTVCmTPrLWAd3tbKeyG4jk1bAC");
 const VETH = Base58.decode("1Tf1QKv3gVYLjq34yURSHw5ErTYbFjqTG");
 const VUSDT = Base58.decode("12VoHz41a4HtfiyhTWbg9RXqGMRbYk6pXh");
+const COLLECTOR = Base58.decode("1N8iYrYEJdCVK1rhbqv3qZUzHcpoeKmFnj");
 
 const E8: u64 = 100000000;
 
@@ -218,5 +219,41 @@ describe("Pool", () => {
       okCalls(2);
       p2.claim_owner_fees(new pool.claim_arguments(VETH, VUSDT, USER));
     }).toThrow();
+  });
+
+  it("a fee collector (the bot) can claim, but only into fee_to; only the owner sets it", () => {
+    const p = setup(300);
+    seed(p, 100 * E8, 300000 * E8);
+    authorize([USER]);
+    okCalls(2);
+    p.swap(new pool.swap_arguments(USER, VUSDT, VETH, 3000 * E8, 0, new Uint8Array(0)));
+    expect(() => {
+      const p2 = new Pool();
+      authorize([COLLECTOR]);
+      okCalls(2);
+      p2.claim_owner_fees(new pool.claim_arguments(VETH, VUSDT, COLLECTOR));
+    }).toThrow(); // not set up yet
+    expect(() => {
+      const p3 = new Pool();
+      authorize([USER]);
+      p3.set_fee_settings(new pool.fee_settings(USER, USER));
+    }).toThrow(); // only the owner
+  });
+
+  it("owner sets the collector; the collector's claim empties the fees", () => {
+    const p = setup(300);
+    seed(p, 100 * E8, 300000 * E8);
+    authorize([USER]);
+    okCalls(2);
+    p.swap(new pool.swap_arguments(USER, VUSDT, VETH, 3000 * E8, 0, new Uint8Array(0)));
+    authorize([OWNER]);
+    p.set_fee_settings(new pool.fee_settings(COLLECTOR, COLLECTOR));
+    const fs = p.get_fee_settings();
+    expect(Base58.encode(fs.collector!)).toBe(Base58.encode(COLLECTOR));
+    authorize([COLLECTOR]);
+    okCalls(2);
+    p.claim_owner_fees(new pool.claim_arguments(VETH, VUSDT, USER)); // "to" is ignored for the collector
+    const after = p.get_pool(new pool.pair_arguments(VETH, VUSDT));
+    expect(after.owner_fees_a + after.owner_fees_b).toBe(0);
   });
 });

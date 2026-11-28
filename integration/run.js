@@ -172,6 +172,16 @@ async function main() {
   const claimed = (await balance(KOIN, owner.address)) - koinBefore;
   check('owner claimed all KOIN fees', claimed === totalOwnerFees, { claimed: k(claimed) });
 
+  // fee collector (the bot): may trigger a claim, but the fees always go to fee_to (the owner)
+  await expectFail('stranger cannot set the fee collector', () => send(stranger, [[pool(stranger).functions.set_fee_settings, { fee_to: stranger.address, collector: stranger.address }]]));
+  await send(owner, [[pool(owner).functions.set_fee_settings, { fee_to: owner.address, collector: lp2.address }]]);
+  const pc = await getPool(tok.tETH, tok.tUSDT);
+  const usdtIsA = pc.token_a === tok.tUSDT;
+  const feeUsdt = big(usdtIsA ? pc.owner_fees_a : pc.owner_fees_b);
+  const ownerUsdt0 = await balance(tok.tUSDT, owner.address), lpUsdt0 = await balance(tok.tUSDT, lp2.address);
+  await send(lp2, [[pool(lp2).functions.claim_owner_fees, { token_a: tok.tETH, token_b: tok.tUSDT, to: lp2.address }]]);
+  check('collector claim pays the owner (fee_to), not the collector', (await balance(tok.tUSDT, owner.address)) - ownerUsdt0 === feeUsdt && (await balance(tok.tUSDT, lp2.address)) === lpUsdt0 && feeUsdt > 0n, { fee: k(feeUsdt) });
+
   // accounting: pool's KOIN balance = sum of KOIN reserves + unclaimed owner fees
   let koinReserves = 0n;
   for (const p of plan.filter(p => p.a === KOIN)) {

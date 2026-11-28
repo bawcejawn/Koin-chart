@@ -330,6 +330,9 @@ class Bot {
     setInterval(() => { this.log('summary', this.summary()); this.writeSummary(); }, 3600e3);
     if (this.live) setInterval(() => this.lowBalanceCheck().catch(() => {}), 600e3);
     setInterval(() => this.dailyCheck().catch(e => this.log('daily summary failed: ' + e.message)), 60e3);
+    if (this.live) setInterval(async () => {
+      try { await this.feeCheck(usdOfWith(await priceBook())); } catch (e) { this.log('fee check failed: ' + e.message); }
+    }, 5 * 60e3);
     const beat = () => this.heartbeat().catch(e => this.log('heartbeat failed: ' + e.message));
     setTimeout(beat, 15e3);
     setInterval(beat, (this.cfg.heartbeatMin ?? 30) * 60e3);
@@ -337,6 +340,57 @@ class Bot {
     process.on('SIGTERM', stop);
     process.on('SIGINT', stop);
     this.tick();
+  }
+
+  // ---- #1 auto-claim and compound the owner's 10% ----
+  // Needs set_fee_settings(fee_to = bot, collector = bot) on the pool contract (done once from the owner panel).
+  async feeCheck(usdOf) {
+    const f = this.cfg.fees || {};
+    const op = this.cfg.ownPools || {};
+    if (!this.live || f.enabled === false || !op.contract) return null;
+    if (Date.now() - (this.lastFeeCheck || 0) < (f.checkEveryMin ?? 60) * 60e3) return null;
+    this.lastFeeCheck = Date.now();
+    const settings = await this.chain.feeSettings(op.contract);
+    if (settings.collector !== this.address || settings.fee_to !== this.address) {
+      this.logEvery('fees-setup', 24 * 3600e3, 'Auto-claim is off: in the owner panel, set the fee collector and fee destination to the bot address.');
+      return null;
+    }
+    const pools = (await this.chain.ownFees(op.contract, op.pairs || [])).filter(p => p.feesA > 0n || p.feesB > 0n);
+    if (!pools.length) return null;
+    const usd = pools.reduce((a, p) => a + usdOf(p.tokenA, p.feesA) + usdOf(p.tokenB, p.feesB), 0);
+    const weekly = Date.now() - (this.lastClaim || 0) > 7 * 864e5;
+    if (usd < (f.claimUsd ?? 5) && !weekly) return null;
+    const ops = [];
+    for (const p of pools) ops.push(await this.chain.claimOp(op.contract, p.tokenA, p.tokenB, this.address));
+    const tx = await this.chain.send(this.signer, ops);
+    this.lastClaim = Date.now();
+    this.record({ kind: 'fee-claim', usd: +usd.toFixed(2), pools: pools.length, tx: tx.id });
+    this.log(`CLAIMED owner fees from ${pools.length} pools (~$${usd.toFixed(2)})`, { tx: tx.id });
+    if (f.compound !== false) await this.compound(op, pools).catch(e => this.log('compound skipped: ' + e.message));
+    return { usd, pools: pools.length };
+  }
+
+  // Put fee tokens back to work: for each non-KOIN pool where the bot now holds both tokens, add them as liquidity
+  // (the bot's KOIN stays for VHP buys and loops).
+  async compound(op, pools) {
+    for (const p of pools) {
+      if (p.tokenA === ADDR.KOIN || p.tokenB === ADDR.KOIN || p.totalShares === 0n) continue;
+      const [ha, hb] = await Promise.all([this.chain.balance(p.tokenA, this.address), this.chain.balance(p.tokenB, this.address)]);
+      // match the pool ratio with what we hold
+      let a = ha, b = p.reserveA ? ha * p.reserveB / p.reserveA : 0n;
+      if (b > hb) { b = hb; a = p.reserveB ? hb * p.reserveA / p.reserveB : 0n; }
+      if (a <= 0n || b <= 0n) continue;
+      const shares = (a * p.totalShares / p.reserveA) < (b * p.totalShares / p.reserveB) ? a * p.totalShares / p.reserveA : b * p.totalShares / p.reserveB;
+      const minShares = shares * 995n / 1000n;
+      if (minShares <= 0n) continue;
+      const tx = await this.chain.send(this.signer, [
+        await this.chain.approveOp(p.tokenA, this.address, a, op.contract),
+        await this.chain.approveOp(p.tokenB, this.address, b, op.contract),
+        await this.chain.addLiquidityOp(op.contract, this.address, p.tokenA, p.tokenB, a, b, minShares),
+      ]);
+      this.record({ kind: 'compound', tokenA: p.tokenA, tokenB: p.tokenB, a: toK(a), b: toK(b), tx: tx.id });
+      this.log(`COMPOUNDED fees into ${p.tokenA.slice(0, 6)}/${p.tokenB.slice(0, 6)}`, { tx: tx.id });
+    }
   }
 
   // Every 30 min: publish a small status (balances, today's results, node health) for the dashboard,
@@ -389,6 +443,24 @@ function readKey(cfg) {
   return fs.readFileSync(f, 'utf8');
 }
 
+// USD price of each token from KoinDX: its deepest pair's reserveUSD / 2 / its reserve. Cached 10 min.
+let priceCache = { at: 0, map: new Map() };
+async function priceBook() {
+  if (Date.now() - priceCache.at < 600e3) return priceCache.map;
+  const best = new Map();
+  for (const p of await fetchPairs()) {
+    for (const [id, r] of [[p.t0, p.r0], [p.t1, p.r1]]) {
+      if (!(r > 0) || !(p.usd > 0)) continue;
+      const cur = best.get(id);
+      if (!cur || p.usd > cur.usd) best.set(id, { usd: p.usd, price: p.usd / 2 / r });
+    }
+  }
+  const map = new Map([...best].map(([id, v]) => [id === 'koin' ? ADDR.KOIN : id === 'vhp' ? ADDR.VHP : id, v.price]));
+  priceCache = { at: Date.now(), map };
+  return map;
+}
+const usdOfWith = book => (tokenAddr, raw) => (book.get(tokenAddr) || 0) * Number(raw) / 1e8;
+
 async function getJson(url, tries = 3) {
   let last;
   for (let i = 0; i < tries; i++) {
@@ -417,4 +489,4 @@ async function fetchListed() {
   return listedCache.set;
 }
 
-module.exports = { Bot };
+module.exports = { Bot, priceBook, usdOfWith };

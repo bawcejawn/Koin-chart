@@ -93,6 +93,13 @@ message shares_arguments {
   bytes account = 3 [(koinos.btype) = ADDRESS];
 }
 
+// Who may collect the owner's fees besides the owner, and where collected fees always go.
+// The collector (e.g. the bot) can trigger a claim but can never choose where the fees go.
+message fee_settings {
+  bytes fee_to = 1 [(koinos.btype) = ADDRESS];
+  bytes collector = 2 [(koinos.btype) = ADDRESS];
+}
+
 message claim_arguments {
   bytes token_a = 1 [(koinos.btype) = ADDRESS];
   bytes token_b = 2 [(koinos.btype) = ADDRESS];

@@ -93,6 +93,10 @@ input[type=range]{width:100%;accent-color:var(--up)}
       <div class="field"><label>Create a pool</label>
         <div class="inrow"><select id="cA"></select><select id="cB"></select><select id="cFee"><option value="300">3%</option><option value="100">1%</option><option value="30">0.3%</option></select></div></div>
       <button class="btn wide" id="cGo" type="button">Create pool</button>
+      <h3 class="sub">Auto-claim by the bot</h3>
+      <p class="status" style="margin:0 0 6px">Let the bot claim your 10% and put it back to work. The bot can only send fees to the address below, which only you can change.</p>
+      <div class="field"><label for="fsAddr">Bot address (collector and fee destination)</label><div class="inrow"><input id="fsAddr" placeholder="1..." autocomplete="off" style="font-size:14px"></div><div class="hint"><span id="fsNow"></span></div></div>
+      <button class="btn wide" id="fsGo" type="button">Save auto-claim setting</button>
       <h3 class="sub">Owner fees waiting to be claimed</h3>
       <div class="scroll"><table><tbody id="feeBody"></tbody></table></div>
     </div>
@@ -118,9 +122,9 @@ input[type=range]{width:100%;accent-color:var(--up)}
 
 <script src="vendor/koilib-9.4.1.min.js"></script>
 <script src="vendor/kondor-js-0.4.3.min.js"></script>
-<script src="js/abi.js?v=1"></script>
-<script src="js/poolabi.js?v=1"></script>
-<script src="js/pools-config.js?v=1"></script>
-<script src="js/pools.js?v=1"></script>
+<script src="js/abi.js?v=202611281606"></script>
+<script src="js/poolabi.js?v=202611281606"></script>
+<script src="js/pools-config.js?v=202611281606"></script>
+<script src="js/pools.js?v=202611281606"></script>
 </body>
 </html>
