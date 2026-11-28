@@ -73,19 +73,20 @@ async function main() {
   const lk = new LocalKoinos();
   await lk.startBlockProduction(); // run.js exited; produce blocks for the page's transactions
   // ---- trader: connect, swap, add + remove liquidity ----
-  const t = await openPage(D.trader);
+  const t = current = await openPage(D.trader);
   t.$('wConnect').click();
   await waitFor(() => !t.$('wInfo').hidden, 30000, 'wallet connect');
   check('wallet connects', true);
   check('pools table shows the 5 pools', (t.$('pBody').textContent.match(/%/g) || []).length >= 5, t.$('pBody').textContent.slice(0, 120));
 
-  set(t.$('sFrom'), 'KOIN'); set(t.$('sTo'), 'vUSDT'); set(t.$('sIn'), '2');
+  // (vUSDT -> vETH: the local chain's KOIN build has no approve, mainnet KOIN does)
+  set(t.$('sFrom'), 'vUSDT'); set(t.$('sTo'), 'vETH'); set(t.$('sIn'), '2');
   await waitFor(() => !t.$('sGo').disabled, 10000, 'swap button');
-  const usdtBefore = await balance(D.tokens.tUSDT, t.signer.address);
+  const ethBefore = await balance(D.tokens.tETH, t.signer.address);
   t.$('sGo').click();
   await waitFor(() => /confirmed/.test(lastAct(t.w).status || ''), 90000, 'swap confirmation');
-  const gotUsdt = (await balance(D.tokens.tUSDT, t.signer.address)) - usdtBefore;
-  check('swap from the page delivers tokens', gotUsdt > 0n, { tUSDT: Number(gotUsdt) / 1e8 });
+  const gotEth = (await balance(D.tokens.tETH, t.signer.address)) - ethBefore;
+  check('swap from the page delivers tokens', gotEth > 0n, { tETH: Number(gotEth) / 1e8 });
 
   set(t.$('lPool'), 'vETH/vUSDT');
   await sleep(300);
@@ -109,7 +110,7 @@ async function main() {
   t.close();
 
   // ---- owner: claim fees, create a pool ----
-  const o = await openPage(D.owner);
+  const o = current = await openPage(D.owner);
   o.$('wConnect').click();
   await waitFor(() => !o.$('ownerBox').hidden, 30000, 'owner panel');
   check('owner panel shows for the owner', true);
@@ -130,7 +131,11 @@ async function main() {
   o.close();
 }
 
-main().catch(e => { check('page flow finished', false, String(e.message || e)); }).finally(() => {
+let current = null;
+main().catch(e => {
+  const toasts = current ? [...current.w.document.querySelectorAll('.toast')].map(x => x.textContent) : [];
+  check('page flow finished', false, { error: String(e.message || e), toasts, errors: current ? current.errors.slice(0, 3) : [] });
+}).finally(() => {
   fs.writeFileSync(path.join(__dirname, 'page-report.json'), JSON.stringify({ passed: results.length - failures, failed: failures, results }, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n### Pools page test: ${results.length - failures} passed, ${failures} failed\n\n` + results.map(r => `- ${r.ok ? '✅' : '❌'} ${r.name}`).join('\n') + '\n');
   console.log(`\npage: ${results.length - failures} passed, ${failures} failed`);
