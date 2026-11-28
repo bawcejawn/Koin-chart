@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-28T17:25:06.434Z",
+  "at": "2026-11-28T18:25:06.471Z",
   "mode": "paper",
   "address": "PAPER",
   "producer": "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd",
@@ -8,8 +8,8 @@
   "vhp": 0,
   "mana": 10576.17881221,
   "node": {
-    "height": 41466075,
-    "lagSec": -1,
+    "height": 41467275,
+    "lagSec": -3,
     "url": "https://api.koinosblocks.com"
   },
   "today": {
