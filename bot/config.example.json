@@ -6,7 +6,7 @@
   "producerAddress": "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd",
   "keyFile": "bot.key",
   "reserveKoin": 100,
-  "lowBalanceKoin": 150,
+  "lowBalanceKoin": 10000,
   "pollMs": 3000,
   "vhp": {
     "enabled": true,
@@ -28,7 +28,7 @@
     "scanEverySec": 60
   },
   "paper": {
-    "startKoin": 1000,
+    "startKoin": 30000,
     "autoRefill": true
   }
 }

@@ -94,10 +94,13 @@ class Bot {
       this.stats.skipped++;
       if (!this.live && this.cfg.paper.autoRefill) {
         // paper test: pretend the owner topped the bot up, so a 2-day test measures every opportunity
-        this.paper.koin += fromK(this.cfg.paper.startKoin);
+        const target = fromK(this.cfg.paper.startKoin);
+        const added = target - this.paper.koin;
+        this.paper.koin = target;
         this.stats.refills = (this.stats.refills || 0) + 1;
-        this.record({ kind: 'paper-refill', koin: this.cfg.paper.startKoin, edgePct: +edgePct.toFixed(3) });
-        this.log(`(paper) top-up needed: refilled ${this.cfg.paper.startKoin} KOIN (refill #${this.stats.refills})`);
+        this.stats.refilledKoin = (this.stats.refilledKoin || 0n) + added;
+        this.record({ kind: 'paper-refill', koinAdded: toK(added), edgePct: +edgePct.toFixed(3) });
+        this.log(`(paper) top-up needed: refilled ${toK(added).toFixed(2)} KOIN back to ${this.cfg.paper.startKoin} (refill #${this.stats.refills})`);
         return;
       }
       return this.logEvery('topup', 600e3, `VHP edge ${edgePct.toFixed(2)}% but only ${toK(cap).toFixed(2)} KOIN spendable (reserve ${this.cfg.reserveKoin} KOIN). Top up the bot.`);
@@ -209,7 +212,7 @@ class Bot {
     const s = this.stats;
     return {
       since: s.startedAt, buys: s.buys, koinSpent: toK(s.koinSpent), vhpGot: toK(s.vhpGot), extraVhpVsBurn: toK(s.vhpGot - s.koinSpent),
-      loops: s.loops, loopProfitKoin: toK(s.loopProfit), skipped: s.skipped, errors: s.errors, refills: s.refills || 0,
+      loops: s.loops, loopProfitKoin: toK(s.loopProfit), skipped: s.skipped, errors: s.errors, refills: s.refills || 0, refilledKoin: toK(s.refilledKoin || 0n),
       ...(this.live ? {} : { paperKoin: toK(this.paper.koin), paperVhpSent: toK(this.paper.sentVhp) }),
     };
   }

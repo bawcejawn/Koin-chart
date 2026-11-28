@@ -26,7 +26,7 @@ env:
   XCHAIN_COOLDOWN_H: '12'
   MAX_ALERTS_PER_DAY: '6'  # never more than this many new alert emails in 24 hours
   NOTIFY_USER: bawcejawn
-  BOT_LOW_KOIN: '150'      # email when the bot has less KOIN than this
+  BOT_LOW_KOIN: '10000'      # email when the bot has less KOIN than this
   BOT_ADDRESS: ${{ vars.BOT_ADDRESS }}   # set this repo variable once the bot has its address
 
 jobs:

@@ -13,7 +13,7 @@ const CFG = {
   loop: { minKoin: env('LOOP_MIN_KOIN', '25'), cooldownH: env('LOOP_COOLDOWN_H', '6') },
   xchain: { netPct: env('XCHAIN_NET_PCT', '5'), cooldownH: env('XCHAIN_COOLDOWN_H', '12') },
   maxPerDay: env('MAX_ALERTS_PER_DAY', '6'),
-  bot: { minKoin: env('BOT_LOW_KOIN', '150'), cooldownH: env('BOT_COOLDOWN_H', '24') },
+  bot: { minKoin: env('BOT_LOW_KOIN', '10000'), cooldownH: env('BOT_COOLDOWN_H', '24') },
 };
 const REPO = process.env.GITHUB_REPOSITORY || 'bawcejawn/Koin-chart';
 const TOKEN = process.env.GH_TOKEN;
