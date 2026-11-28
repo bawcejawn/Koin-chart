@@ -13,7 +13,7 @@ const CFG = {
   loop: { minKoin: env('LOOP_MIN_KOIN', '25'), cooldownH: env('LOOP_COOLDOWN_H', '6') },
   xchain: { netPct: env('XCHAIN_NET_PCT', '5'), cooldownH: env('XCHAIN_COOLDOWN_H', '12') },
   maxPerDay: env('MAX_ALERTS_PER_DAY', '6'),
-  bot: { minKoin: env('BOT_LOW_KOIN', '10000'), cooldownH: env('BOT_COOLDOWN_H', '24') },
+  bot: { minKoin: env('BOT_LOW_KOIN', '10000'), cooldownH: env('BOT_COOLDOWN_H', '2') },
 };
 const REPO = process.env.GITHUB_REPOSITORY || 'bawcejawn/Koin-chart';
 const TOKEN = process.env.GH_TOKEN;
@@ -77,12 +77,27 @@ async function checkBot() {
   const args = Buffer.concat([Buffer.from([0x0a, addr.length]), addr]).toString('base64url');
   const r = await rpc('chain.read_contract', { contract_id: KOIN, entry_point: 0x5c721497, args });
   const koin = Number(pb(Buffer.from(r.result || '', 'base64url'))[1] || 0n) / 1e8;
+  const spendable = Math.max(0, koin - 100); // the bot always keeps 100 KOIN
+  // what the best VHP buy would want right now
+  const p = await reserves(VHP_PAIR);
+  const V = Number(p.a) / 1e8, K = Number(p.b) / 1e8, F = 0.9975;
+  const edge = (F * V / K - 1) * 100;
+  const best = edge >= 1 ? Math.max(0, (Math.sqrt(K * V * F) - K) / F) : 0;
+  const short = best > spendable + 1 ? best - spendable : 0;
+  const low = koin < CFG.bot.minKoin;
+  const lines = [];
+  if (short) {
+    const outAll = V * F * best / (K + F * best), outBot = V * F * spendable / (K + F * spendable);
+    lines.push(`A VHP buy at **+${edge.toFixed(2)}%** wants **${f(best)} KOIN** for best return, but the bot can spend only **${f(spendable)} KOIN**.`,
+      `Topping up **${f(short)} KOIN** gets about **+${f(outAll - best - (outBot - spendable))} more VHP** vs burning. Or take it yourself on the page: ${PAGE}#buy`);
+  }
+  if (low) lines.push(`The bot has **${f(koin)} KOIN** (alert below ${f(CFG.bot.minKoin, 0)}). It always keeps 100 KOIN.`);
+  lines.push(`Bot address: \`${BOT_ADDRESS}\``);
   return {
-    open: koin < CFG.bot.minKoin, value: koin,
-    title: `Bot needs KOIN: ${f(koin)} left`,
-    body: [`The bot address \`${BOT_ADDRESS}\` has **${f(koin)} KOIN** (alert below ${CFG.bot.minKoin}). It always keeps 100 KOIN, so it can only trade above that.`,
-      `Send KOIN to \`${BOT_ADDRESS}\` to keep it buying VHP and running loops.`].join('\n\n'),
-    closeNote: `balance is back to ${f(koin)} KOIN`,
+    open: low || !!short, value: koin,
+    title: short ? `Bot needs ${f(short, 0)} more KOIN for a +${edge.toFixed(1)}% VHP buy` : `Bot needs KOIN: ${f(koin)} left`,
+    body: lines.join('\n\n'),
+    closeNote: `bot has ${f(koin)} KOIN and nothing is waiting on more`,
   };
 }
 
