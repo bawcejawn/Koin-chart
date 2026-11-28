@@ -75,7 +75,7 @@ test('paper trade moves the shadow pool, so the same edge is not bought twice', 
   await bot.vhpCheck();
   await bot.vhpCheck();
   assert.equal(bot.stats.buys, 1, 'second check sees the pool after our pretend trade');
-  chain.res = { a: 331000n * E8, b: 300000n * E8 }; // a real trade changed the pool
+  chain.res = { a: 340000n * E8, b: 300000n * E8 }; // someone sold 10k VHP into the real pool: a new edge on top of ours
   await bot.vhpCheck();
   assert.equal(bot.stats.buys, 2);
 });
@@ -169,4 +169,20 @@ test('daily summary is due once per day at 8 AM New York time', () => {
   assert.strictEqual(n.dailyDue(8, 'America/New_York', new Date('2026-11-28T13:05:00Z')), '2026-11-28'); // 8:05 ET
   assert.strictEqual(n.dailyDue(8, 'America/New_York', new Date('2026-11-28T15:00:00Z')), null); // already sent today
   assert.strictEqual(n.dailyDue(8, 'America/New_York', new Date('2026-11-29T13:01:00Z')), '2026-11-29');
+});
+
+test('paper: a real trade by someone else does not erase our pretend trade', async () => {
+  const chain = mockChain();
+  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain, dataDir: tmp(), notifier });
+  await bot.vhpCheck();
+  assert.strictEqual(bot.stats.buys, 1);
+  const after = await bot.reserves(ADDR.VHP_PAIR);
+  // someone else sells 1 VHP into the real pool
+  const real = await chain.reserves(ADDR.VHP_PAIR);
+  chain.res = { a: real.a + 1n * E8, b: real.b - 1n * E8 };
+  const shifted = await bot.reserves(ADDR.VHP_PAIR);
+  assert.strictEqual(shifted.a, after.a + 1n * E8);
+  assert.strictEqual(shifted.b, after.b - 1n * E8);
+  await bot.vhpCheck(); // the edge is gone in our shadow book, so no second big buy
+  assert.strictEqual(bot.stats.buys, 1);
 });

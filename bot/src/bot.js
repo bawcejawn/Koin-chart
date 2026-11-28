@@ -54,9 +54,14 @@ class Bot {
   async reserves(pair) {
     const real = await this.chain.reserves(pair);
     const s = this.shadow.get(pair);
-    if (s && s.realA === real.a && s.realB === real.b) return { a: s.simA, b: s.simB };
-    this.shadow.delete(pair);
-    return real;
+    if (!s) return real;
+    if (s.realA === real.a && s.realB === real.b) return { a: s.simA, b: s.simB };
+    // Someone else traded the real pool. Our pretend trade would still be in it, so apply their
+    // change on top of our shadow instead of forgetting it (otherwise paper re-buys the same edge).
+    const a = s.simA + (real.a - s.realA), b = s.simB + (real.b - s.realB);
+    const next = { realA: real.a, realB: real.b, simA: a > 1n ? a : 1n, simB: b > 1n ? b : 1n };
+    this.shadow.set(pair, next);
+    return { a: next.simA, b: next.simB };
   }
   shadowTrade(pair, realBefore, simAfter) {
     if (this.live) return;
