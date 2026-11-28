@@ -1,0 +1,7 @@
+{"t":"2026-11-28T01:24:16.922Z","mode":"paper","kind":"vhp-buy","edgePct":14.986,"koinIn":20442.78756582,"vhpOut":21921.15855099,"extraVhp":1478.37098517,"minOut":21811.55275823}
+{"t":"2026-11-28T01:24:16.923Z","mode":"paper","kind":"vhp-sweep","vhp":21921.15855099,"to":"1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd"}
+{"t":"2026-11-28T01:43:28.817Z","mode":"paper","kind":"vhp-buy","edgePct":14.986,"koinIn":9457.21243418,"vhpOut":10522.47766022,"extraVhp":1065.26522604,"minOut":10469.86527191}
+{"t":"2026-11-28T01:43:28.817Z","mode":"paper","kind":"vhp-sweep","vhp":10522.47766022,"to":"1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd"}
+{"t":"2026-11-28T01:43:31.816Z","mode":"paper","kind":"paper-refill","koinAdded":29900,"edgePct":7.653}
+{"t":"2026-11-28T01:43:37.860Z","mode":"paper","kind":"vhp-buy","edgePct":7.653,"koinIn":10974.15911614,"vhpOut":11386.3698244,"extraVhp":412.21070826,"minOut":11329.43797527}
+{"t":"2026-11-28T01:43:37.860Z","mode":"paper","kind":"vhp-sweep","vhp":11386.3698244,"to":"1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd"}

@@ -1,0 +1,13 @@
+[2026-11-28T01:24:16.167Z] PAPER started. address=PAPER producer=1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd reserve=100 KOIN minEdge=1%
+[2026-11-28T01:24:16.922Z] PAPER BUY VHP: 20442.7876 KOIN -> 21921.1586 VHP (+1478.3710 vs burning, edge 14.986%)
+[2026-11-28T01:24:16.922Z] PAPER (paper) would send 21921.1586 VHP to producer 1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd
+[2026-11-28T01:43:28.817Z] PAPER BUY VHP: 9457.2124 KOIN -> 10522.4777 VHP (+1065.2652 vs burning, edge 14.986%)
+[2026-11-28T01:43:28.817Z] PAPER (paper) would send 10522.4777 VHP to producer 1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd
+[2026-11-28T01:43:31.816Z] PAPER (paper) top-up needed: refilled 29900.00 KOIN back to 30000 (refill #1)
+[2026-11-28T01:43:37.860Z] PAPER BUY VHP: 10974.1591 KOIN -> 11386.3698 VHP (+412.2107 vs burning, edge 7.653%)
+[2026-11-28T01:43:37.860Z] PAPER (paper) would send 11386.3698 VHP to producer 1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd
+[2026-11-28T02:24:16.169Z] PAPER summary {"since":"2026-11-28T01:24:16.166Z","buys":3,"koinSpent":40874.15911614,"vhpGot":43830.00603561,"extraVhpVsBurn":2955.84691947,"loops":0,"loopProfitKoin":0,"skipped":1,"errors":0,"refills":1,"refilledKoin":29900,"paperKoin":19025.84088386,"paperVhpSent":43830.00603561}
+[2026-11-28T03:24:16.171Z] PAPER summary {"since":"2026-11-28T01:24:16.166Z","buys":3,"koinSpent":40874.15911614,"vhpGot":43830.00603561,"extraVhpVsBurn":2955.84691947,"loops":0,"loopProfitKoin":0,"skipped":1,"errors":0,"refills":1,"refilledKoin":29900,"paperKoin":19025.84088386,"paperVhpSent":43830.00603561}
+[2026-11-28T04:24:16.171Z] PAPER summary {"since":"2026-11-28T01:24:16.166Z","buys":3,"koinSpent":40874.15911614,"vhpGot":43830.00603561,"extraVhpVsBurn":2955.84691947,"loops":0,"loopProfitKoin":0,"skipped":1,"errors":0,"refills":1,"refilledKoin":29900,"paperKoin":19025.84088386,"paperVhpSent":43830.00603561}
+[2026-11-28T05:24:16.172Z] PAPER summary {"since":"2026-11-28T01:24:16.166Z","buys":3,"koinSpent":40874.15911614,"vhpGot":43830.00603561,"extraVhpVsBurn":2955.84691947,"loops":0,"loopProfitKoin":0,"skipped":1,"errors":0,"refills":1,"refilledKoin":29900,"paperKoin":19025.84088386,"paperVhpSent":43830.00603561}
+[2026-11-28T06:24:16.175Z] PAPER summary {"since":"2026-11-28T01:24:16.166Z","buys":3,"koinSpent":40874.15911614,"vhpGot":43830.00603561,"extraVhpVsBurn":2955.84691947,"loops":0,"loopProfitKoin":0,"skipped":1,"errors":0,"refills":1,"refilledKoin":29900,"paperKoin":19025.84088386,"paperVhpSent":43830.00603561}
