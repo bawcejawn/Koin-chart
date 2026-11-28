@@ -96,7 +96,9 @@ async function main() {
   const gotEth = (await balance(D.tokens.tETH, t.signer.address)) - ethBefore;
   check('swap from the page delivers tokens', gotEth > 0n, { tETH: Number(gotEth) / 1e8 });
 
-  set(t.$('lPool'), 'vETH/vUSDT');
+  // pools list as token_a/token_b in byte order, which depends on the random test token addresses
+  const ethUsdt = [...t.$('lPool').options].map(o => o.value).find(v => v.includes('vETH') && v.includes('vUSDT'));
+  set(t.$('lPool'), ethUsdt);
   await sleep(300);
   const p = t.w.KP.pools.find(x => x.A + '/' + x.B === t.$('lPool').value);
   set(t.$('lA'), p.A === 'vETH' ? '0.001' : '30');
