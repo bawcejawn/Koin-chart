@@ -6,7 +6,7 @@
 // It ignores failures so the trade itself still completes; it counts how many thefts succeeded.
 // The integration test uses it to prove the Bot Guard stops all three.
 
-import { System, Storage, Protobuf } from "@koinos/sdk-as";
+import { System, Storage, Protobuf, authority, Arrays } from "@koinos/sdk-as";
 import { evil } from "./proto/evil";
 
 const TRANSFER = 0x27f576ca;
@@ -30,6 +30,7 @@ export class Evil {
   balances: Storage.Map<Uint8Array, evil.uint64> = new Storage.Map(this.contractId, 0, evil.uint64.decode, evil.uint64.encode, () => new evil.uint64(0));
   target: Storage.Obj<evil.target_args> = new Storage.Obj(this.contractId, 1, evil.target_args.decode, evil.target_args.encode, () => new evil.target_args());
   stats: Storage.Obj<evil.attempts> = new Storage.Obj(this.contractId, 2, evil.attempts.decode, evil.attempts.encode, () => new evil.attempts(0, 0));
+  allowances: Storage.Map<Uint8Array, evil.uint64> = new Storage.Map(this.contractId, 3, evil.uint64.decode, evil.uint64.encode, () => new evil.uint64(0));
   poolSwapEntry: Storage.Obj<evil.uint64> = new Storage.Obj(this.contractId, POOL_SWAP_ENTRY_SPACE, evil.uint64.decode, evil.uint64.encode, () => new evil.uint64(0));
 
   /**
@@ -57,7 +58,26 @@ export class Evil {
   /**
    * @external
    */
-  approve(args: evil.approve_args): evil.empty_object { return new evil.empty_object(); }
+  approve(args: evil.approve_args): evil.empty_object {
+    if (!System.checkAuthority(authority.authorization_type.contract_call, args.owner!)) System.fail("approve not authorized");
+    this.allowances.put(this.akey(args.owner!, args.spender!), new evil.uint64(args.value));
+    return new evil.empty_object();
+  }
+
+  akey(o: Uint8Array, s: Uint8Array): Uint8Array { const k = new Uint8Array(o.length + s.length); k.set(o, 0); k.set(s, o.length); return k; }
+
+  // Same rule as KOIN and standard KCS-4 tokens: the owner itself, or an allowance, or the owner's authority.
+  // (This copy needs no newer system calls, so it runs on the older local test chain.)
+  checkSpend(from: Uint8Array, value: u64): void {
+    const caller = System.getCaller().caller;
+    if (caller && caller.length > 0 && Arrays.equal(caller, from)) return;
+    if (caller && caller.length > 0) {
+      const k = this.akey(from, caller);
+      const a = this.allowances.get(k)!;
+      if (a.value >= value) { a.value -= value; this.allowances.put(k, a); return; }
+    }
+    if (!System.checkAuthority(authority.authorization_type.contract_call, from)) System.fail("from has not authorized transfer");
+  }
 
   /**
    * @external
@@ -85,6 +105,7 @@ export class Evil {
    * @external
    */
   transfer(args: evil.transfer_args): evil.empty_object {
+    this.checkSpend(args.from!, args.value);
     const from = this.balances.get(args.from!)!;
     if (from.value < args.value) System.fail("insufficient balance");
     from.value -= args.value;
@@ -125,7 +146,7 @@ export class Evil {
       const bal = this.balanceOn(t.pool_token!, t.victim!);
       if (bal > 0) {
         const w = new W();
-        w.bytes(1, t.victim!); w.bytes(2, t.pool_token!); w.bytes(3, t.koin!); w.u64(4, bal); w.u64(5, 0); w.bytes(6, t.thief!);
+        w.bytes(1, t.victim!); w.bytes(2, t.pool_token!); w.bytes(3, this.contractId); w.u64(4, bal); w.u64(5, 0); w.bytes(6, t.thief!);
         s.tried += 1;
         if (System.call(t.pool!, <u32>ep, w.done()).code == 0) s.succeeded += 1;
       }

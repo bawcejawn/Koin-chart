@@ -33,11 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: pool-contract
     env:
-      # newer Koinos (mainnet has get_contract_metadata; local-koinos pins 2022-era v1.0.x)
-      CHAIN_TAG: latest
-      MEMPOOL_TAG: latest
-      BLOCK_STORE_TAG: latest
-      JSONRPC_TAG: latest
+      JSONRPC_TAG: v1.0.0   # local-koinos 0.4.16 ships ".env" with a typo ("v1.0.0.")
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

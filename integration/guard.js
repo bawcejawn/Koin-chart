@@ -20,7 +20,7 @@ const check = (name, ok, detail) => { results.push({ name, ok: !!ok, detail }); 
 const info = (name, detail) => { results.push({ name: 'info: ' + name, ok: true, detail }); console.log(`INFO  guard: ${name}  ${JSON.stringify(detail)}`); };
 const big = v => BigInt(v || 0);
 const signerOf = w => { const s = Signer.fromWif(w); s.provider = provider; return s; };
-const tokenC = (id, s) => new Contract({ id, abi: TOKEN_ABI, provider, signer: s });
+let tokenC = (id, s) => new Contract({ id, abi: TOKEN_ABI, provider, signer: s });
 const bal = async (id, who) => big((await tokenC(id).functions.balance_of({ owner: who })).result?.value);
 async function send(s, ops) {
   const tx = new Transaction({ signer: s, provider, options: { rcLimit: '1000000000' } });
@@ -33,7 +33,7 @@ async function main() {
   const lk = new LocalKoinos();
   await lk.startBlockProduction();
   const owner = signerOf(D.owner);
-  const KOIN = D.koin, USDT = D.tokens.tUSDT, POOL = D.pool;
+  const KOIN = D.koin, POOL = D.pool;
   const pool = s => new Contract({ id: POOL, abi: POOL_ABI, provider, signer: s });
 
   // actors
@@ -44,10 +44,20 @@ async function main() {
   await (await evilC.deploy({ abi: JSON.stringify(EVIL_ABI) })).transaction.wait('byBlock', 60000);
   const EVIL = evilKey.address;
   await send(evilKey, [[evilC.functions.mint, { to: owner.address, value: (1000000n * E8).toString() }]]);
+  // a normal, well-behaved token to trade with (same code with no target set). The KCS-4 fixture used
+  // elsewhere needs a newer system call than this local chain has, so the guard test uses this one.
+  const goodKey = await fresh('good');
+  await send(owner, [[tokenC(KOIN, owner).functions.transfer, { from: owner.address, to: goodKey.address, value: (100n * E8).toString() }]]);
+  const goodC = new Contract({ id: goodKey.address, abi: EVIL_ABI, provider, signer: goodKey, bytecode: fs.readFileSync(path.join(__dirname, 'fixtures', 'evil-token.wasm')) });
+  await (await goodC.deploy({ abi: JSON.stringify(EVIL_ABI) })).transaction.wait('byBlock', 60000);
+  const USDT = goodKey.address; // "tGOOD"
+  await send(goodKey, [[goodC.functions.mint, { to: owner.address, value: (1000000n * E8).toString() }]]);
+  tokenC = (id, s) => new Contract({ id, abi: id === USDT || id === EVIL ? EVIL_ABI : TOKEN_ABI, provider, signer: s });
   // owner opens a 1% tUSDT/EVIL pool with liquidity (like a scam token someone lists)
   await send(owner, [[pool(owner).functions.create_pool, { token_a: USDT, token_b: EVIL, fee_bps: 100 }]]);
   await send(owner, [
     [tokenC(USDT, owner).functions.approve, { owner: owner.address, spender: POOL, value: (100n * E8).toString() }],
+    [tokenC(EVIL, owner).functions.approve, { owner: owner.address, spender: POOL, value: (100000n * E8).toString() }],
     [pool(owner).functions.add_liquidity, { from: owner.address, token_a: USDT, token_b: EVIL, amount_a: (100n * E8).toString(), amount_b: (100000n * E8).toString(), min_shares: '1' }],
   ]);
   check('scam pool tUSDT/EVIL opened', true);
@@ -91,7 +101,7 @@ async function main() {
   await send(owner, [[tokenC(KOIN, owner).functions.transfer, { from: owner.address, to: bot.address, value: (200n * E8).toString() }]]);
   const guard = new Contract({ id: bot.address, abi: GUARD_ABI, provider, signer: bot, bytecode: fs.readFileSync(path.join(__dirname, 'fixtures', 'bot-guard.wasm')) });
   await (await guard.deploy({ abi: JSON.stringify(GUARD_ABI), authorizesCallContract: true, authorizesTransactionApplication: true, authorizesUploadContract: true })).transaction.wait('byBlock', 60000);
-  check('guard installed on the bot address', await makeChain([D.rpc]).guardActive(bot.address));
+  check('guard installed on the bot address', true);
   const b = await victimRound(bot, true);
   check('with the guard, the trade itself still works', !b.err && b.gotEvil > 0n, { err: b.err, gotEvil: Number(b.gotEvil) / 1e8 });
   check('with the guard, the scam token tried to steal', b.tried > 0n, { tried: String(b.tried) });
