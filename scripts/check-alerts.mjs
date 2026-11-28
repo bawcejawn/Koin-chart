@@ -13,6 +13,7 @@ const CFG = {
   loop: { minKoin: env('LOOP_MIN_KOIN', '25'), cooldownH: env('LOOP_COOLDOWN_H', '6') },
   xchain: { netPct: env('XCHAIN_NET_PCT', '5'), cooldownH: env('XCHAIN_COOLDOWN_H', '12') },
   maxPerDay: env('MAX_ALERTS_PER_DAY', '6'),
+  quiet: { min: env('BOT_QUIET_MIN', '45'), cooldownH: env('BOT_QUIET_COOLDOWN_H', '1') },
   bot: { minKoin: env('BOT_LOW_KOIN', '10000'), cooldownH: env('BOT_COOLDOWN_H', '2') },
 };
 const REPO = process.env.GITHUB_REPOSITORY || 'bawcejawn/Koin-chart';
@@ -101,6 +102,23 @@ async function checkBot() {
   };
 }
 
+// ---------- 5. Bot went quiet (live bot only) ----------
+async function checkHeartbeat() {
+  const r = await fetch(`https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'bawcejawn/Koin-chart'}/bot-status/status.json?t=${Date.now()}`);
+  if (!r.ok) return { open: false, value: 0 };
+  const s = await r.json();
+  const ageMin = (Date.now() - new Date(s.at).getTime()) / 60e3;
+  const live = s.mode === 'live';
+  return {
+    open: live && ageMin > CFG.quiet.min, value: Math.round(ageMin),
+    title: `Bot is quiet: no heartbeat for ${Math.round(ageMin)} minutes`,
+    body: [`The bot last reported at **${s.at}** (${Math.round(ageMin)} minutes ago). It reports every 30 minutes.`,
+      'Check that your PC is on, the bot window is open (start-bot.bat restarts it), and your node is synced.',
+      `Last known: ${f(s.koin)} KOIN, ${f(s.vhp)} VHP, ${s.paused ? 'PAUSED' : 'running'}.`].join('\n\n'),
+    closeNote: 'the bot is reporting again',
+  };
+}
+
 // ---------- 2. Loops ----------
 async function checkLoops() {
   const pairs = [];
@@ -171,7 +189,7 @@ async function gh(method, path, body) {
   if (!r.ok && r.status !== 422) throw new Error(`GitHub ${method} ${path}: ${r.status} ${await r.text()}`);
   return r.status === 204 ? null : r.json();
 }
-const LABELS = { vhp: 'vhp-alert', loop: 'loop-alert', xchain: 'xchain-alert', bot: 'bot-topup' };
+const LABELS = { vhp: 'vhp-alert', loop: 'loop-alert', xchain: 'xchain-alert', bot: 'bot-topup', quiet: 'bot-offline' };
 
 async function handle(type, res) {
   const label = LABELS[type];
@@ -200,7 +218,7 @@ async function handle(type, res) {
   return 'opened';
 }
 
-const checks = { vhp: checkVhp, loop: checkLoops, xchain: checkXchain, ...(BOT_ADDRESS ? { bot: checkBot } : {}) };
+const checks = { vhp: checkVhp, loop: checkLoops, xchain: checkXchain, ...(BOT_ADDRESS ? { bot: checkBot, quiet: checkHeartbeat } : {}) };
 const summary = [];
 let failed = 0;
 for (const [type, fn] of Object.entries(checks)) {

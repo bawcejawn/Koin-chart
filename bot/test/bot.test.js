@@ -11,7 +11,7 @@ const PRODUCER = '1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd';
 
 function cfg(over = {}) {
   return {
-    mode: 'paper', rpc: [], producerAddress: PRODUCER, reserveKoin: 100, lowBalanceKoin: 150, pollMs: 3000,
+    mode: 'paper', rpc: [], producerAddress: PRODUCER, reserveKoin: 100, lowBalanceKoin: 150, pollMs: 3000, remotePause: false,
     vhp: { enabled: true, minEdgePct: 1, slippagePct: 0.5, minTradeKoin: 1, sweepMinVhp: 1 },
     loops: { enabled: false, starts: ['koin'], minProfitKoin: 0.5, keepProfitPct: 50, includeUnlisted: false, allowTokens: [], minPoolUsd: 1, scanEverySec: 60 },
     paper: { startKoin: 1000 }, ...over,
@@ -208,4 +208,35 @@ test('live refuses unlisted-token loops until the Bot Guard is active', () => {
   assert.strictEqual(live.unlistedAllowed(), true);
   const paper = new Bot(cfg({ loops: { ...cfg().loops, includeUnlisted: true } }), { chain: mockChain(), dataDir: tmp(), notifier });
   assert.strictEqual(paper.unlistedAllowed(), true);
+});
+
+test('single-instance lock refuses a second bot while the first is alive', () => {
+  const { acquireLock } = require('../src/guard');
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, 'bot.lock'), JSON.stringify({ pid: process.ppid, at: 'earlier' })); // a live process that isn't us
+  assert.throws(() => acquireLock(dir), /already running/);
+  fs.writeFileSync(path.join(dir, 'bot.lock'), JSON.stringify({ pid: 999999, at: 'stale' })); // dead PID: take over
+  const l = acquireLock(dir);
+  assert.strictEqual(JSON.parse(fs.readFileSync(l.file, 'utf8')).pid, process.pid);
+  l.release();
+});
+
+test('remote pause: an open "pause-bot" issue pauses trading; GitHub being down keeps the last state', async () => {
+  const { RemotePause } = require('../src/guard');
+  const rp = new RemotePause('o/r', '', 0);
+  rp.fetch = async () => ({ ok: true, json: async () => [{ number: 9, title: 'PAUSE BOT' }] });
+  assert.strictEqual(await rp.check(), true);
+  rp.fetch = async () => { throw new Error('offline'); };
+  assert.strictEqual(await rp.check(), true);
+  rp.fetch = async () => ({ ok: true, json: async () => [] });
+  assert.strictEqual(await rp.check(), false);
+  const chain = mockChain();
+  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain, dataDir: tmp(), notifier, remotePause: { paused: true, reason: 'x', check: async () => true } });
+  await bot.tick();
+  assert.strictEqual(bot.stats.buys, 0);
+});
+
+test('mana reserve: spendable keeps 5 KOIN of mana back for the next transactions', () => {
+  const bot = new Bot(cfg(), { chain: mockChain(), dataDir: tmp(), notifier });
+  assert.strictEqual(bot.spendable({ koin: 1000n * E8, mana: 50n * E8 }), 45n * E8);
 });

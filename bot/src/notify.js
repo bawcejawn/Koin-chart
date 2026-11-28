@@ -18,18 +18,18 @@ class Notifier {
   save() { try { fs.writeFileSync(this.stateFile, JSON.stringify(this.state)); } catch (e) {} }
 
   // at most once per `everyMs` for the same key
-  async send(kind, key, title, body, everyMs = 0) {
+  async send(kind, key, title, body, everyMs = 0, { quiet = false } = {}) {
     const last = this.state['k:' + key] || 0;
     if (everyMs && Date.now() - last < everyMs) return false;
     this.state['k:' + key] = Date.now(); this.save();
-    if (!this.token) { this.log(`(email not sent, no GitHub token) ${title}`); return false; }
+    if (!this.token) { if (!quiet) this.log(`(email not sent, no GitHub token) ${title}`); return false; }
     const r = await this.fetch(`https://api.github.com/repos/${this.repo}/dispatches`, {
       method: 'POST',
       headers: { authorization: `Bearer ${this.token}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'user-agent': 'koin-chart-bot' },
       body: JSON.stringify({ event_type: `bot-${kind}`, client_payload: { title, body: body.slice(0, 60000), key } }),
     });
     if (!r.ok) { this.log(`email dispatch failed: HTTP ${r.status}`); return false; }
-    this.log(`email queued: ${title}`);
+    if (!quiet) this.log(`email queued: ${title}`);
     return true;
   }
 

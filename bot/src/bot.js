@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { makeChain, loadSigner, ADDR, LoopCore, isOwn, ownParts } = require('./chain');
 const { Notifier, dailyReport } = require('./notify');
+const { RemotePause } = require('./guard');
 
 const E8 = 100000000n;
 const toK = raw => Number(raw) / 1e8;
@@ -30,6 +31,7 @@ class Bot {
     this.lowWarned = 0;
     this.notifier = opts.notifier || new Notifier(cfg, (m) => this.log(m), this.dataDir);
     this.stopFile = opts.stopFile || path.join(__dirname, '..', 'STOP');
+    this.remotePause = opts.remotePause || (cfg.remotePause === false ? null : new RemotePause((cfg.github && cfg.github.repo) || 'bawcejawn/Koin-chart', this.notifier.token));
     this.stats = { buys: 0, koinSpent: 0n, vhpGot: 0n, loops: 0, loopProfit: 0n, skipped: 0, errors: 0, startedAt: nowIso() };
   }
 
@@ -80,7 +82,8 @@ class Bot {
   spendable(w) {
     const reserve = fromK(this.cfg.reserveKoin);
     const byBalance = w.koin - reserve;
-    const byMana = w.mana - 2n * E8;
+    // keep enough mana for the next transactions (the VHP transfer, a loop) after this one
+    const byMana = w.mana - fromK(this.cfg.manaReserveKoin ?? 5);
     const s = byBalance < byMana ? byBalance : byMana;
     return s > 0n ? s : 0n;
   }
@@ -305,6 +308,10 @@ class Bot {
     this.busy = true;
     try {
       if (this.stopped()) return;
+      if (this.remotePause && await this.remotePause.check()) {
+        this.logEvery('remote-pause', 600e3, `PAUSED from GitHub (${this.remotePause.reason}). Close that issue to resume.`);
+        return;
+      }
       const h = await this.chain.head();
       if (h.height === this.lastHeight) return;
       this.lastHeight = h.height;
@@ -323,10 +330,40 @@ class Bot {
     setInterval(() => { this.log('summary', this.summary()); this.writeSummary(); }, 3600e3);
     if (this.live) setInterval(() => this.lowBalanceCheck().catch(() => {}), 600e3);
     setInterval(() => this.dailyCheck().catch(e => this.log('daily summary failed: ' + e.message)), 60e3);
+    const beat = () => this.heartbeat().catch(e => this.log('heartbeat failed: ' + e.message));
+    setTimeout(beat, 15e3);
+    setInterval(beat, (this.cfg.heartbeatMin ?? 30) * 60e3);
     const stop = () => { this.writeSummary(); process.exit(0); };
     process.on('SIGTERM', stop);
     process.on('SIGINT', stop);
     this.tick();
+  }
+
+  // Every 30 min: publish a small status (balances, today's results, node health) for the dashboard,
+  // and so the alert job can email you if the bot goes quiet.
+  async heartbeat() {
+    let w = null, head = null;
+    try { w = await this.wallet(); } catch (e) {}
+    try { head = await this.chain.head(); } catch (e) {}
+    const status = {
+      at: new Date().toISOString(), mode: this.cfg.mode, address: this.address, producer: this.cfg.producerAddress,
+      paused: !!(this.cfg.paused || fs.existsSync(this.stopFile) || (this.remotePause && this.remotePause.paused)),
+      koin: w ? toK(w.koin) : null, vhp: w ? toK(w.vhp) : null, mana: w ? toK(w.mana) : null,
+      node: head ? { height: head.height, lagSec: Math.round((Date.now() - head.time) / 1000), url: head.node } : null,
+      today: this.todayTotals(), totals: this.summary(),
+    };
+    this.lastStatus = status;
+    try { fs.writeFileSync(path.join(this.dataDir, 'status.json'), JSON.stringify(status, null, 2)); } catch (e) {}
+    await this.notifier.send('heartbeat', 'hb', 'heartbeat', JSON.stringify(status), 0, { quiet: true });
+  }
+
+  todayTotals() {
+    const since = Date.now() - 864e5;
+    let rows = [];
+    try { rows = fs.readFileSync(path.join(this.dataDir, 'ledger.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(r => new Date(r.t).getTime() >= since); } catch (e) {}
+    const sum = (k, f) => rows.filter(r => r.kind === k).reduce((a, r) => a + (+r[f] || 0), 0);
+    return { buys: rows.filter(r => r.kind === 'vhp-buy').length, koinOnVhp: sum('vhp-buy', 'koinIn'), extraVhp: sum('vhp-buy', 'extraVhp'),
+      vhpSent: sum('vhp-sweep', 'vhp'), loops: rows.filter(r => r.kind === 'loop').length, loopProfit: sum('loop', 'profit') };
   }
 
   async dailyCheck() {

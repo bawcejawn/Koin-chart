@@ -14,6 +14,10 @@ if (cfg.mode === 'live' && !/^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(cfg.producerAd
   console.error('producerAddress in config.json does not look like a Koinos address. Refusing to run live.');
   process.exit(1);
 }
+const { acquireLock } = require('./guard');
+const dataDir = path.join(__dirname, '..', 'data');
+fs.mkdirSync(dataDir, { recursive: true });
+try { acquireLock(dataDir); } catch (e) { console.error(e.message); process.exit(1); }
 const bot = new Bot(cfg);
 process.on('SIGINT', () => { console.log('summary', bot.summary()); process.exit(0); });
 bot.run();

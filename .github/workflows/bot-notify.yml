@@ -4,17 +4,41 @@ name: Bot notifications
 # issue or comment from github-actions, which GitHub emails to you.
 on:
   repository_dispatch:
-    types: [bot-summary, bot-alert]
+    types: [bot-summary, bot-alert, bot-heartbeat]
 
 permissions:
   issues: write
+  contents: write
 
 concurrency:
   group: bot-notify
   cancel-in-progress: false
 
 jobs:
+  status:
+    # bot-heartbeat: store the bot's status on the bot-status branch (read by bot.html and the alert job)
+    if: github.event.action == 'bot-heartbeat'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write status
+        env:
+          STATUS: ${{ github.event.client_payload.body }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if git clone -q --depth 1 --branch bot-status "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" s 2>/dev/null; then cd s; else mkdir s && cd s && git init -q -b bot-status && git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"; fi
+          printf '%s' "$STATUS" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const s=JSON.parse(d);const fs=require("fs");
+            fs.writeFileSync("status.json",JSON.stringify(s,null,2));
+            let h=[];try{h=fs.readFileSync("history.jsonl","utf8").trim().split("\n").filter(Boolean)}catch(e){}
+            h.push(JSON.stringify({at:s.at,koin:s.koin,vhp:s.vhp,paused:s.paused,lag:s.node&&s.node.lagSec,today:s.today}));
+            fs.writeFileSync("history.jsonl",h.slice(-400).join("\n")+"\n")})'
+          git add status.json history.jsonl
+          git commit -q -m "status $(date -u +%FT%TZ)" || exit 0
+          git push -q origin bot-status
   post:
+    if: github.event.action != 'bot-heartbeat'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
