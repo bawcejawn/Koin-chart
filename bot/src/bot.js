@@ -5,7 +5,8 @@
 // - "paper" mode reads the real chain and records what it would do, without signing anything.
 const fs = require('fs');
 const path = require('path');
-const { makeChain, loadSigner, ADDR, LoopCore } = require('./chain');
+const { makeChain, loadSigner, ADDR, LoopCore, isOwn, ownParts } = require('./chain');
+const { Notifier, dailyReport } = require('./notify');
 
 const E8 = 100000000n;
 const toK = raw => Number(raw) / 1e8;
@@ -15,7 +16,7 @@ const nowIso = () => new Date().toISOString();
 class Bot {
   constructor(cfg, opts = {}) {
     this.cfg = cfg;
-    this.chain = opts.chain || makeChain(cfg.rpc);
+    this.chain = opts.chain || makeChain(cfg.rpc, cfg.verifyRpc || []);
     this.live = cfg.mode === 'live';
     this.dataDir = opts.dataDir || path.join(__dirname, '..', 'data');
     fs.mkdirSync(this.dataDir, { recursive: true });
@@ -27,6 +28,8 @@ class Bot {
     this.lastLoopScan = 0;
     this.busy = false;
     this.lowWarned = 0;
+    this.notifier = opts.notifier || new Notifier(cfg, (m) => this.log(m), this.dataDir);
+    this.stopFile = opts.stopFile || path.join(__dirname, '..', 'STOP');
     this.stats = { buys: 0, koinSpent: 0n, vhpGot: 0n, loops: 0, loopProfit: 0n, skipped: 0, errors: 0, startedAt: nowIso() };
   }
 
@@ -77,6 +80,25 @@ class Bot {
     return s > 0n ? s : 0n;
   }
 
+  // Cross-check the pools we are about to trade against the other nodes. A bad read can never lose money
+  // (every trade carries an on-chain minimum return), but this stops us even trying on a wrong price.
+  async verified(pairs, reals, what) {
+    const v = await this.chain.verify(pairs, reals, this.cfg.verifyNeed || 1);
+    if (v.ok) return true;
+    this.stats.skipped++;
+    this.record({ kind: 'verify-fail', what, sources: v.sources, bad: v.bad });
+    this.logEvery('verify:' + what, 300e3, `SKIP ${what}: nodes disagree on pool reserves (${v.bad.length} mismatches, ${v.sources} sources)`);
+    return false;
+  }
+
+  stopped() {
+    if (this.cfg.paused || fs.existsSync(this.stopFile)) {
+      this.logEvery('stopped', 600e3, `STOPPED: ${this.cfg.paused ? '"paused": true in config' : 'STOP file present'} - not trading. Delete the STOP file (or run resume-bot.bat) to resume.`);
+      return true;
+    }
+    return false;
+  }
+
   // ---- strategy 1: buy VHP below burn ----
   async vhpCheck() {
     const c = this.cfg.vhp;
@@ -90,6 +112,12 @@ class Bot {
     const hop = [{ rin: r.b, rout: r.a }];
     const best = LoopCore.bestSize(hop, r.b);
     const amountIn = best.amountIn < cap ? best.amountIn : cap;
+    if (this.live && best.amountIn > cap + E8) {
+      const short = best.amountIn - cap;
+      const extra = (LoopCore.simulate(hop, best.amountIn) - best.amountIn) - (LoopCore.simulate(hop, cap) - cap);
+      this.notifier.send('alert', 'shortfall', `Bot needs ${Math.ceil(toK(short)).toLocaleString('en-US')} more KOIN for a +${edgePct.toFixed(1)}% VHP buy`,
+        `The best VHP buy right now is **${toK(best.amountIn).toFixed(2)} KOIN** (edge +${edgePct.toFixed(2)}%), but the bot can spend **${toK(cap).toFixed(2)} KOIN**.\n\nTopping up **${toK(short).toFixed(2)} KOIN** would get about **+${toK(extra).toFixed(2)} more VHP** vs burning. Send KOIN to \`${this.address}\`, or take it yourself: https://bawcejawn.github.io/Koin-chart/#buy`, 2 * 3600e3).catch(() => {});
+    }
     if (amountIn < fromK(c.minTradeKoin)) {
       this.stats.skipped++;
       if (!this.live && this.cfg.paper.autoRefill) {
@@ -111,6 +139,7 @@ class Bot {
     let minOut = out * (10000n - slip) / 10000n;
     if (minOut <= amountIn) minOut = amountIn + 1n; // never accept less than burning would give
     const info = { edgePct: +edgePct.toFixed(3), koinIn: toK(amountIn), vhpOut: toK(out), extraVhp: toK(out - amountIn), minOut: toK(minOut) };
+    if (!(await this.verified([ADDR.VHP_PAIR], [real], 'VHP buy'))) return;
     if (this.live) {
       const ops = [];
       if ((await this.chain.allowance('koin', this.address)) < amountIn) ops.push(await this.chain.approveOp('koin', this.address, amountIn));
@@ -143,14 +172,16 @@ class Bot {
     }
   }
 
-  // ---- strategy 2: loss-proof loops ----
+  // ---- strategy 2: loss-proof loops (KoinDX pairs and our own pools) ----
   async loopCheck() {
     const c = this.cfg.loops;
     if (!c.enabled || Date.now() - this.lastLoopScan < c.scanEverySec * 1000) return;
     this.lastLoopScan = Date.now();
-    const [pairs, listed] = await Promise.all([fetchPairs(), fetchListed()]);
-    const allow = id => c.includeUnlisted || listed.has(id) || (c.allowTokens || []).includes(id);
-    const cands = LoopCore.findLoops(pairs, c.starts, { maxHops: 4, minEdge: 1.003, minUsd: c.minPoolUsd, allowToken: allow })
+    const [koindx, listed] = await Promise.all([fetchPairs(), fetchListed()]);
+    const own = this.cfg.ownPools && this.cfg.ownPools.contract ? await this.chain.ownPools(this.cfg.ownPools.contract, this.cfg.ownPools.pairs || []) : [];
+    const ownTokens = new Set(own.flatMap(p => [p.t0, p.t1]));
+    const allow = id => c.includeUnlisted || listed.has(id) || ownTokens.has(id) || (c.allowTokens || []).includes(id);
+    const cands = LoopCore.findLoops([...koindx, ...own], c.starts, { maxHops: 4, minEdge: 1.003, minUsd: c.minPoolUsd, allowToken: allow })
       .map(l => ({ l, est: LoopCore.estimate(l) })).filter(x => x.est.profit > 0n)
       .sort((x, y) => (y.est.profit > x.est.profit ? 1 : -1)).slice(0, 12);
     if (!cands.length) return;
@@ -162,41 +193,76 @@ class Bot {
         const real = await this.chain.reserves(e.p.id);
         const r = await this.reserves(e.p.id);
         const fwd = (await this.chain.token0(e.p.id)) === (e.from === 'koin' ? ADDR.KOIN : e.from === 'vhp' ? ADDR.VHP : e.from);
-        hops.push({ rin: fwd ? r.a : r.b, rout: fwd ? r.b : r.a, fwd, pool: e.p.id }); reals.push(real);
+        hops.push({ rin: fwd ? r.a : r.b, rout: fwd ? r.b : r.a, fwd, pool: e.p.id, venue: e.p.venue, feeBps: e.p.feeBps, from: e.from, to: e.to });
+        reals.push(real);
       }
       const cap = l.start === 'koin' ? this.spendable(w) : w.vhp;
       if (cap <= 0n) continue;
       const b = LoopCore.bestSize(hops, hops[0].rin < cap ? hops[0].rin : cap);
       if (b.profit < fromK(c.minProfitKoin)) continue;
-      if (!best || b.profit > best.b.profit) best = { l, hops, reals, b };
+      const plan = this.planSegments(hops, b.amountIn);
+      if (!plan || plan.profit < fromK(c.minProfitKoin)) continue;
+      if (!best || plan.profit > best.plan.profit) best = { l, hops, reals, b, plan };
     }
     if (!best) return;
-    const { l, hops, reals, b } = best;
+    const { l, hops, reals, plan } = best;
     const pathIds = [l.start, ...l.edges.map(e => e.to)];
     const keep = BigInt(Math.round(c.keepProfitPct * 100));
-    let minOut = b.amountIn + b.profit * keep / 10000n;
-    if (minOut <= b.amountIn) minOut = b.amountIn + 1n;
-    const info = { path: pathIds, amountIn: toK(b.amountIn), amountOut: toK(b.amountOut), profit: toK(b.profit), minOut: toK(minOut) };
+    let minOut = plan.amountIn + plan.profit * keep / 10000n;
+    if (minOut <= plan.amountIn) minOut = plan.amountIn + 1n;
+    const info = { path: pathIds, venues: plan.segs.map(sg => sg.venue), amountIn: toK(plan.amountIn), amountOut: toK(plan.amountOut), profit: toK(plan.profit), minOut: toK(minOut) };
+    if (!(await this.verified(hops.map(h => h.pool), reals, 'loop ' + pathIds.join('>')))) return;
     if (this.live) {
       const ops = [];
-      if ((await this.chain.allowance(l.start, this.address)) < b.amountIn) ops.push(await this.chain.approveOp(l.start, this.address, b.amountIn));
-      ops.push(await this.chain.swapOp(this.address, b.amountIn, minOut, pathIds));
+      plan.segs.forEach((sg, i) => { sg.minOut = i === plan.segs.length - 1 ? minOut : sg.minOut; });
+      for (const sg of plan.segs) {
+        const spender = sg.venue === 'own' ? ownParts(sg.pool).c : ADDR.PERIPHERY;
+        ops.push(await this.chain.approveOp(sg.tokens[0], this.address, sg.amountIn, spender));
+        ops.push(sg.venue === 'own'
+          ? await this.chain.ownSwapOp(spender, this.address, sg.tokens[0], sg.tokens[1], sg.amountIn, sg.minOut)
+          : await this.chain.swapOp(this.address, sg.amountIn, sg.minOut, sg.tokens));
+      }
       const tx = await this.chain.send(this.signer, ops);
       info.tx = tx.id;
     } else {
       // move each pool in the shadow book
-      let x = b.amountIn;
+      let x = plan.amountIn;
       hops.forEach((h, i) => {
-        const out = LoopCore.amountOut(x, h.rin, h.rout);
+        const out = LoopCore.hopOut(h, x);
         const nin = h.rin + x, nout = h.rout - out;
         this.shadowTrade(h.pool, reals[i], h.fwd ? { a: nin, b: nout } : { a: nout, b: nin });
         x = out;
       });
-      if (l.start === 'koin') this.paper.koin += b.profit; else this.paper.vhp += b.profit;
+      if (l.start === 'koin') this.paper.koin += plan.profit; else this.paper.vhp += plan.profit;
     }
-    this.stats.loops++; this.stats.loopProfit += b.profit;
-    this.log(`LOOP ${pathIds.join('>')}: ${info.amountIn.toFixed(4)} -> ${info.amountOut.toFixed(4)} (+${info.profit.toFixed(4)})`, info.tx ? { tx: info.tx } : undefined);
+    this.stats.loops++; this.stats.loopProfit += plan.profit;
+    this.log(`LOOP ${pathIds.join('>')} [${info.venues.join('+')}]: ${info.amountIn.toFixed(4)} -> ${info.amountOut.toFixed(4)} (+${info.profit.toFixed(4)})`, info.tx ? { tx: info.tx } : undefined);
     this.record({ kind: 'loop', ...info });
+  }
+
+  // Split a loop into one swap per venue run: consecutive KoinDX hops go through the router in one call,
+  // each of our pools is its own swap. Every segment but the last passes on only its guaranteed minimum,
+  // so the next swap never asks for more than we are sure to have. All in one transaction: if any part
+  // returns less than its minimum, the whole thing reverts and nothing is traded.
+  planSegments(hops, amountIn) {
+    const slip = BigInt(Math.round((this.cfg.loops.segmentSlippagePct ?? 0.3) * 100));
+    const segs = [];
+    for (const h of hops) {
+      const venue = h.venue === 'own' ? 'own' : 'koindx';
+      const last = segs[segs.length - 1];
+      if (venue === 'koindx' && last && last.venue === 'koindx') { last.hops.push(h); last.tokens.push(h.to); }
+      else segs.push({ venue, pool: h.pool, hops: [h], tokens: [h.from, h.to] });
+    }
+    let x = amountIn;
+    segs.forEach((sg, i) => {
+      sg.amountIn = x;
+      sg.expected = LoopCore.simulate(sg.hops, x);
+      sg.minOut = i === segs.length - 1 ? sg.expected : sg.expected * (10000n - slip) / 10000n;
+      x = sg.minOut;
+    });
+    if (segs.length === 1) return { segs, amountIn, amountOut: segs[0].expected, profit: segs[0].expected - amountIn };
+    const out = segs[segs.length - 1].expected;
+    return { segs, amountIn, amountOut: out, profit: out - amountIn };
   }
 
   async lowBalanceCheck() {
@@ -205,6 +271,9 @@ class Bot {
     if (w.koin < low && Date.now() - this.lowWarned > 6 * 3600e3) {
       this.lowWarned = Date.now();
       this.log(`LOW BALANCE: ${toK(w.koin).toFixed(2)} KOIN (warn below ${this.cfg.lowBalanceKoin}). Top up the bot address ${this.address}.`);
+      this.record({ kind: 'topup-needed', koin: toK(w.koin) });
+      await this.notifier.send('alert', 'low', `Bot needs KOIN: ${toK(w.koin).toFixed(0)} left`,
+        `The bot has **${toK(w.koin).toFixed(2)} KOIN** (alert below ${this.cfg.lowBalanceKoin}). Refill to ${this.cfg.refillToKoin || 30000} by sending KOIN to \`${this.address}\`.`, 24 * 3600e3);
     }
   }
 
@@ -221,6 +290,7 @@ class Bot {
     if (this.busy) return;
     this.busy = true;
     try {
+      if (this.stopped()) return;
       const h = await this.chain.head();
       if (h.height === this.lastHeight) return;
       this.lastHeight = h.height;
@@ -238,10 +308,22 @@ class Bot {
     setInterval(() => this.tick(), this.cfg.pollMs);
     setInterval(() => { this.log('summary', this.summary()); this.writeSummary(); }, 3600e3);
     if (this.live) setInterval(() => this.lowBalanceCheck().catch(() => {}), 600e3);
+    setInterval(() => this.dailyCheck().catch(e => this.log('daily summary failed: ' + e.message)), 60e3);
     const stop = () => { this.writeSummary(); process.exit(0); };
     process.on('SIGTERM', stop);
     process.on('SIGINT', stop);
     this.tick();
+  }
+
+  async dailyCheck() {
+    const d = this.cfg.daily || {};
+    if (d.enabled === false) return;
+    const day = this.notifier.dailyDue(d.hour ?? 8, d.tz || 'America/New_York');
+    if (!day) return;
+    let balances;
+    try { const w = await this.wallet(); balances = { koin: toK(w.koin), vhp: toK(w.vhp) }; } catch (e) {}
+    const body = dailyReport(path.join(this.dataDir, 'ledger.jsonl'), this.summary(), { mode: this.cfg.mode, balances });
+    await this.notifier.send('summary', 'daily-' + day, `Bot daily summary ${day}`, body);
   }
 
   writeSummary() {

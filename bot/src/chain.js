@@ -13,9 +13,16 @@ const ADDR = {
   VHP_PAIR: '1NqLghiFRwkXZR7NBFHHiCJkF5gLHyJap1',
 };
 const contractAddr = id => (id === 'koin' ? ADDR.KOIN : id === 'vhp' ? ADDR.VHP : id);
+const tokenName = addr => (addr === ADDR.KOIN ? 'koin' : addr === ADDR.VHP ? 'vhp' : addr);
+const POOL_ABI = require(path.join(__dirname, '../../contracts/pool/build/pool-abi.json'));
+// our own pools are addressed as "own:<poolContract>:<tokenA>:<tokenB>" (tokens as contract addresses)
+const isOwn = id => typeof id === 'string' && id.startsWith('own:');
+const ownParts = id => { const [, c, a, b] = id.split(':'); return { c, a, b }; };
 
-function makeChain(rpcUrls) {
+function makeChain(rpcUrls, verifyUrls = []) {
   const provider = new Provider(rpcUrls);
+  const verifiers = verifyUrls.map(u => new Provider([u]));
+  const poolC = (c, prov = provider) => new Contract({ id: c, abi: POOL_ABI, provider: prov });
   const periphery = new Contract({ id: ADDR.PERIPHERY, abi: globalThis.PERIPHERY_ABI, provider });
   const tokenC = id => new Contract({ id: contractAddr(id), abi: globalThis.TOKEN_ABI, provider });
 
@@ -29,28 +36,76 @@ function makeChain(rpcUrls) {
     }
     return o;
   }
-  const read = async (contract_id, entry_point) => {
-    const r = await provider.call('chain.read_contract', { contract_id, entry_point, args: '' });
+  const read = async (contract_id, entry_point, prov = provider) => {
+    const r = await prov.call('chain.read_contract', { contract_id, entry_point, args: '' });
     return pb(Buffer.from((r && r.result) || '', 'base64url'));
   };
+  // reserves of a KoinDX pair or one of our pools, as { a: token0/token_a reserve, b: token1/token_b reserve }
+  async function reservesVia(prov, pair) {
+    if (isOwn(pair)) {
+      const { c, a, b } = ownParts(pair);
+      const { result } = await poolC(c, prov).functions.get_pool({ token_a: a, token_b: b });
+      if (!result || !result.exists) return { a: 0n, b: 0n, feeBps: 0, tokenA: null };
+      return { a: BigInt(result.reserve_a || 0), b: BigInt(result.reserve_b || 0), feeBps: result.fee_bps, tokenA: result.token_a };
+    }
+    const d = await read(pair, 0x6d0c5abf, prov);
+    return { a: BigInt(d[2] || 0n), b: BigInt(d[3] || 0n) };
+  }
 
   const api = {
     provider, utils, ADDR,
     async head() { const h = await provider.getHeadInfo(); return { height: Number(h.head_topology.height), id: h.head_topology.id }; },
     // token0 / token1 raw reserves (BigInt)
-    async reserves(pair) { const d = await read(pair, 0x6d0c5abf); return { a: BigInt(d[2] || 0n), b: BigInt(d[3] || 0n) }; },
-    async token0(pair) { const d = await read(pair, 0x7d5b5ed7); return utils.encodeBase58(new Uint8Array(d[1])); },
+    async reserves(pair) { return reservesVia(provider, pair); },
+    async token0(pair) {
+      if (isOwn(pair)) return (await reservesVia(provider, pair)).tokenA;
+      const d = await read(pair, 0x7d5b5ed7); return utils.encodeBase58(new Uint8Array(d[1]));
+    },
+    // Cross-check pools against every verify node (e.g. your other local nodes).
+    // ok only if every node that answers reports exactly the same reserves, and at least `need` nodes answered in total.
+    async verify(pairs, expected, need = 1) {
+      if (!verifiers.length) return { ok: true, sources: 1, note: 'no verify nodes configured' };
+      let answered = 1; const bad = [];
+      for (const v of verifiers) {
+        try {
+          for (let i = 0; i < pairs.length; i++) {
+            const r = await reservesVia(v, pairs[i]);
+            if (r.a !== expected[i].a || r.b !== expected[i].b) bad.push({ pair: pairs[i], node: v.rpcNodes ? v.rpcNodes[0] : '?' });
+          }
+          answered++;
+        } catch (e) { /* node down: does not count either way */ }
+      }
+      return { ok: bad.length === 0 && answered >= need, sources: answered, bad };
+    },
+    // our pools: list the configured pairs with their live state
+    async ownPools(contract, pairs) {
+      const out = [];
+      for (const [a, b] of pairs) {
+        const id = `own:${contract}:${contractAddr(a)}:${contractAddr(b)}`;
+        const r = await reservesVia(provider, id);
+        if (!r.tokenA || r.a === 0n || r.b === 0n) continue;
+        const tA = tokenName(r.tokenA), tB = tokenName(r.tokenA === contractAddr(a) ? contractAddr(b) : contractAddr(a));
+        out.push({ id, venue: 'own', feeBps: r.feeBps, t0: tA, t1: tB, d0: 8, d1: 8, r0: Number(r.a) / 1e8, r1: Number(r.b) / 1e8, usd: 1e9 });
+      }
+      return out;
+    },
+    async ownSwapOp(contract, from, tokenIn, tokenOut, amountIn, minOut) {
+      const { operation } = await poolC(contract).functions.swap({
+        from, token_in: contractAddr(tokenIn), token_out: contractAddr(tokenOut), amount_in: amountIn.toString(), min_out: minOut.toString(),
+      }, { onlyOperation: true });
+      return operation;
+    },
     async balance(token, owner) {
       const { result } = await tokenC(token).functions.balanceOf({ owner });
       return BigInt((result && result.value) || 0);
     },
     async mana(owner) { return BigInt(await provider.getAccountRc(owner)); },
-    async allowance(token, owner) {
-      const { result } = await tokenC(token).functions.allowance({ owner, spender: ADDR.PERIPHERY });
+    async allowance(token, owner, spender) {
+      const { result } = await tokenC(token).functions.allowance({ owner, spender: spender || ADDR.PERIPHERY });
       return BigInt((result && result.value) || 0);
     },
-    async approveOp(token, owner, value) {
-      const { operation } = await tokenC(token).functions.approve({ owner, spender: ADDR.PERIPHERY, value: value.toString() }, { onlyOperation: true });
+    async approveOp(token, owner, value, spender) {
+      const { operation } = await tokenC(token).functions.approve({ owner, spender: spender || ADDR.PERIPHERY, value: value.toString() }, { onlyOperation: true });
       return operation;
     },
     async swapOp(owner, amountIn, amountOutMin, pathIds) {
@@ -84,4 +139,4 @@ function loadSigner(wif) {
   return Signer.fromWif(wif.trim());
 }
 
-module.exports = { makeChain, loadSigner, ADDR, LoopCore: globalThis.LoopCore };
+module.exports = { makeChain, loadSigner, ADDR, LoopCore: globalThis.LoopCore, isOwn, ownParts, contractAddr };

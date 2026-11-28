@@ -3,6 +3,8 @@
   "rpc": [
     "https://api.koinos.io"
   ],
+  "verifyRpc": [],
+  "verifyNeed": 1,
   "producerAddress": "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd",
   "keyFile": "bot.key",
   "reserveKoin": 100,
@@ -25,10 +27,47 @@
     "includeUnlisted": false,
     "allowTokens": [],
     "minPoolUsd": 1,
-    "scanEverySec": 60
+    "scanEverySec": 60,
+    "segmentSlippagePct": 0.3
   },
   "paper": {
     "startKoin": 30000,
     "autoRefill": true
-  }
+  },
+  "refillToKoin": 30000,
+  "ownPools": {
+    "contract": "",
+    "pairs": [
+      [
+        "koin",
+        "1Tf1QKv3gVYLjq34yURSHw5ErTYbFjqTG"
+      ],
+      [
+        "koin",
+        "12VoHz41a4HtfiyhTWbg9RXqGMRbYk6pXh"
+      ],
+      [
+        "koin",
+        "1N8iYrYEJdCVK1rhbqv3qZUzHcpoeKmFnj"
+      ],
+      [
+        "1Tf1QKv3gVYLjq34yURSHw5ErTYbFjqTG",
+        "12VoHz41a4HtfiyhTWbg9RXqGMRbYk6pXh"
+      ],
+      [
+        "1Tf1QKv3gVYLjq34yURSHw5ErTYbFjqTG",
+        "1N8iYrYEJdCVK1rhbqv3qZUzHcpoeKmFnj"
+      ]
+    ]
+  },
+  "daily": {
+    "enabled": true,
+    "hour": 8,
+    "tz": "America/New_York"
+  },
+  "github": {
+    "repo": "bawcejawn/Koin-chart",
+    "token": ""
+  },
+  "paused": false
 }

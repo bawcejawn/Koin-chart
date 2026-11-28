@@ -32,13 +32,17 @@ function mockChain(res = { a: 330000n * E8, b: 300000n * E8 }, wallet = { koin: 
     async swapOp(o, i, m, p) { return { kind: 'swap', amountIn: i, minOut: m, path: p } },
     async transferOp(t, f, to, v) { return { kind: 'transfer', t, to, v } },
     async send(signer, ops) { sent.push(ops); return { id: '0xtest' + sent.length } },
+    verifyResult: { ok: true, sources: 3, bad: [] },
+    async verify() { return this.verifyResult },
   };
 }
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'kcbot-'));
+const notes = [];
+const notifier = { async send(kind, key, title) { notes.push({ kind, key, title }); return true }, dailyDue() { return null } };
 const fakeSigner = { getAddress: () => '1BotAddressxxxxxxxxxxxxxxxxxxxxxx' };
 
 test('paper: buys the best amount when edge >= 1% and sends VHP to the producer', async () => {
-  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain: mockChain(), dataDir: tmp() });
+  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain: mockChain(), dataDir: tmp(), notifier });
   await bot.vhpCheck();
   assert.equal(bot.stats.buys, 1);
   const s = bot.summary();
@@ -50,7 +54,7 @@ test('paper: buys the best amount when edge >= 1% and sends VHP to the producer'
 });
 
 test('always keeps the 100 KOIN reserve', async () => {
-  const bot = new Bot(cfg({ paper: { startKoin: 150 } }), { chain: mockChain(), dataDir: tmp() });
+  const bot = new Bot(cfg({ paper: { startKoin: 150 } }), { chain: mockChain(), dataDir: tmp(), notifier });
   await bot.vhpCheck();
   assert.equal(bot.stats.buys, 1);
   assert.ok(Math.abs(bot.summary().koinSpent - 50) < 0.01, 'spends exactly balance - reserve');
@@ -67,7 +71,7 @@ test('does nothing when edge is below 1%', async () => {
 
 test('paper trade moves the shadow pool, so the same edge is not bought twice', async () => {
   const chain = mockChain();
-  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain, dataDir: tmp() });
+  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain, dataDir: tmp(), notifier });
   await bot.vhpCheck();
   await bot.vhpCheck();
   assert.equal(bot.stats.buys, 1, 'second check sees the pool after our pretend trade');
@@ -78,7 +82,7 @@ test('paper trade moves the shadow pool, so the same edge is not bought twice', 
 
 test('live: one transaction approve+swap with minOut >= amountIn, then transfer to the producer only', async () => {
   const chain = mockChain();
-  const bot = new Bot(cfg({ mode: 'live' }), { chain, dataDir: tmp(), signer: fakeSigner });
+  const bot = new Bot(cfg({ mode: 'live' }), { chain, dataDir: tmp(), notifier, signer: fakeSigner });
   bot.signer = fakeSigner; bot.address = fakeSigner.getAddress();
   chain.wallet = { koin: 1000n * E8, vhp: 0n, mana: 1000n * E8 };
   // after the swap the wallet holds VHP
@@ -99,9 +103,70 @@ test('live: one transaction approve+swap with minOut >= amountIn, then transfer 
 
 test('live: limited by mana, not just balance', async () => {
   const chain = mockChain();
-  const bot = new Bot(cfg({ mode: 'live' }), { chain, dataDir: tmp(), signer: fakeSigner });
+  const bot = new Bot(cfg({ mode: 'live' }), { chain, dataDir: tmp(), notifier, signer: fakeSigner });
   bot.signer = fakeSigner; bot.address = fakeSigner.getAddress();
   chain.wallet = { koin: 1000n * E8, vhp: 0n, mana: 300n * E8 };
   await bot.vhpCheck();
   assert.ok(chain.sent[0][1].amountIn <= 298n * E8);
+});
+
+test('skips the trade when the other nodes report different reserves', async () => {
+  const chain = mockChain();
+  chain.verifyResult = { ok: false, sources: 2, bad: [{ pair: ADDR.VHP_PAIR, node: 'http://127.0.0.1:8081' }] };
+  const dir = tmp();
+  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain, dataDir: dir, notifier });
+  await bot.vhpCheck();
+  assert.strictEqual(bot.stats.buys, 0);
+  assert.match(fs.readFileSync(path.join(dir, 'ledger.jsonl'), 'utf8'), /verify-fail/);
+});
+
+test('STOP file stops all trading', async () => {
+  const dir = tmp();
+  const stopFile = path.join(dir, 'STOP');
+  fs.writeFileSync(stopFile, '');
+  const chain = mockChain();
+  const bot = new Bot(cfg({ paper: { startKoin: 100000 } }), { chain, dataDir: dir, notifier, stopFile });
+  await bot.tick();
+  assert.strictEqual(bot.stats.buys, 0);
+  fs.unlinkSync(stopFile);
+  await bot.tick();
+  assert.strictEqual(bot.stats.buys, 1);
+});
+
+test('live: emails when the best VHP buy needs more KOIN than the bot can spend', async () => {
+  notes.length = 0;
+  const chain = mockChain(undefined, { koin: 1000n * E8, vhp: 0n, mana: 1000n * E8 });
+  const bot = new Bot(cfg({ mode: 'live' }), { chain, dataDir: tmp(), notifier, signer: fakeSigner });
+  await bot.vhpCheck();
+  assert.ok(notes.some(n => n.key === 'shortfall'), 'shortfall email queued');
+  assert.strictEqual(bot.stats.buys, 1); // still buys what it can
+});
+
+test('mixed-venue loop: each segment passes on only its guaranteed minimum, and the loop still profits', () => {
+  const bot = new Bot(cfg({ loops: { ...cfg().loops, segmentSlippagePct: 0.3 } }), { chain: mockChain(), dataDir: tmp(), notifier });
+  const hops = [
+    { rin: 100000n * E8, rout: 2000n * E8, venue: 'koindx', from: 'koin', to: 'USDT', pool: 'p1' },        // KOIN -> USDT on KoinDX
+    { rin: 1800n * E8, rout: 100000n * E8, venue: 'own', feeBps: 100, from: 'USDT', to: 'koin', pool: 'own:C:a:b' }, // USDT -> KOIN in our 1% pool
+  ];
+  const plan = bot.planSegments(hops, 500n * E8);
+  assert.strictEqual(plan.segs.length, 2);
+  assert.strictEqual(plan.segs[1].amountIn, plan.segs[0].minOut);
+  assert.ok(plan.segs[0].minOut < plan.segs[0].expected);
+  assert.ok(plan.profit > 0n, 'profitable even after the haircut');
+});
+
+test('own-pool math matches the contract: fee rounded up, 1%', () => {
+  const { LoopCore } = require('../src/chain');
+  // 150 units at 1%: fee 1.5 -> 2, 148 goes in
+  const out = LoopCore.amountOutOwn(150n, 300000n * E8, 100n * E8, 100);
+  assert.strictEqual(out, (148n * 100n * E8) / (300000n * E8 + 148n));
+});
+
+test('daily summary is due once per day at 8 AM New York time', () => {
+  const { Notifier } = require('../src/notify');
+  const n = new Notifier({}, () => {}, tmp());
+  assert.strictEqual(n.dailyDue(8, 'America/New_York', new Date('2026-11-28T12:30:00Z')), null); // 7:30 ET
+  assert.strictEqual(n.dailyDue(8, 'America/New_York', new Date('2026-11-28T13:05:00Z')), '2026-11-28'); // 8:05 ET
+  assert.strictEqual(n.dailyDue(8, 'America/New_York', new Date('2026-11-28T15:00:00Z')), null); // already sent today
+  assert.strictEqual(n.dailyDue(8, 'America/New_York', new Date('2026-11-29T13:01:00Z')), '2026-11-29');
 });

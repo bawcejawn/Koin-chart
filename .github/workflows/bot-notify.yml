@@ -1,0 +1,45 @@
+name: Bot notifications
+
+# The bot (on your PC, or the paper test here) sends a repository_dispatch event; this posts it as an
+# issue or comment from github-actions, which GitHub emails to you.
+on:
+  repository_dispatch:
+    types: [bot-summary, bot-alert]
+
+permissions:
+  issues: write
+
+concurrency:
+  group: bot-notify
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          NOTIFY_USER: bawcejawn
+        with:
+          script: |
+            const p = context.payload.client_payload || {};
+            const kind = context.payload.action; // bot-summary | bot-alert
+            const user = process.env.NOTIFY_USER;
+            const { owner, repo } = context.repo;
+            const label = kind === 'bot-summary' ? 'bot-daily' : 'bot-topup';
+            await github.rest.issues.createLabel({ owner, repo, name: label, color: kind === 'bot-summary' ? '5c6bc0' : 'ef6c00' }).catch(() => {});
+            const title = String(p.title || 'Bot message').slice(0, 200);
+            const body = `@${user} ${String(p.body || '').slice(0, 60000)}`;
+            const open = (await github.rest.issues.listForRepo({ owner, repo, labels: label, state: 'open', per_page: 5 })).data;
+            if (kind === 'bot-summary') {
+              // one running issue; each day is a comment (each comment emails you)
+              const issue = open[0] || (await github.rest.issues.create({ owner, repo, title: 'Bot daily summaries', labels: [label], assignees: [user], body: `@${user} Daily bot summaries arrive here as comments at 8 AM ET.` })).data;
+              const recent = (await github.rest.issues.listComments({ owner, repo, issue_number: issue.number, per_page: 100 })).data;
+              if (recent.some(c => c.body.startsWith(`### ${title}\n`))) { core.info('already posted today'); return; }
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body: `### ${title}\n\n${body}` });
+            } else if (open[0]) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: open[0].number, body: `### ${title}\n\n${body}` });
+              await github.rest.issues.update({ owner, repo, issue_number: open[0].number, title });
+            } else {
+              await github.rest.issues.create({ owner, repo, title, labels: [label], assignees: [user], body: `${body}\n\nClose this issue once you've topped up.` });
+            }

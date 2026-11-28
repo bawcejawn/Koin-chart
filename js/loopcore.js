@@ -10,9 +10,24 @@
     return (xi * rout) / (rin * FEE_D + xi);
   }
 
-  // hops: [{rin, rout}] reserves as BigInt
+  // Our own pools (contracts/pool): fee fixed per pool, rounded up, same math as the contract's _quote
+  function amountOutOwn(x, rin, rout, feeBps) {
+    if (x <= 0n || rin <= 0n || rout <= 0n) return 0n;
+    const fee = (x * BigInt(feeBps) + 9999n) / 10000n;
+    const xin = x - fee;
+    if (xin <= 0n) return 0n;
+    const out = (xin * rout) / (rin + xin);
+    return out >= rout ? 0n : out;
+  }
+
+  // one hop: KoinDX pair by default, or one of our pools when h.venue === 'own'
+  function hopOut(h, x) {
+    return h.venue === 'own' ? amountOutOwn(x, h.rin, h.rout, h.feeBps) : amountOut(x, h.rin, h.rout);
+  }
+
+  // hops: [{rin, rout, venue?, feeBps?}] reserves as BigInt
   function simulate(hops, x) {
-    for (const h of hops) x = amountOut(x, h.rin, h.rout);
+    for (const h of hops) x = hopOut(h, x);
     return x;
   }
 
@@ -48,7 +63,7 @@
         if (path.length >= maxHops) return;
         for (const e of adj.get(tok) || []) {
           if (used.has(e.p.id)) continue;
-          const r = rate * e.rate * 0.9975;
+          const r = rate * e.rate * (1 - (e.p.feeBps ?? 25) / 10000);
           if (e.to === S) {
             if (path.length >= 1 && r > minEdge) out.push({ start: S, edges: [...path, e], edge: r });
             continue;
@@ -72,11 +87,12 @@
       return {
         rin: BigInt(Math.floor((fwd ? e.p.r0 : e.p.r1) * 10 ** dIn)),
         rout: BigInt(Math.floor((fwd ? e.p.r1 : e.p.r0) * 10 ** dOut)),
+        venue: e.p.venue, feeBps: e.p.feeBps,
       };
     });
     const cap = hops[0].rin;
     return bestSize(hops, cap);
   }
 
-  g.LoopCore = { amountOut, simulate, bestSize, findLoops, estimate };
+  g.LoopCore = { amountOut, amountOutOwn, hopOut, simulate, bestSize, findLoops, estimate };
 })(typeof window !== 'undefined' ? window : globalThis);

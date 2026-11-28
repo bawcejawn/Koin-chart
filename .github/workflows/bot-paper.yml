@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   actions: write
+  issues: write
 
 concurrency:
   group: bot-paper
@@ -34,6 +35,8 @@ jobs:
         run: npm ci || npm install
       - name: Run bot in paper mode
         working-directory: bot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # lets the paper bot send the 8 AM summary email
         run: |
           cp config.example.json config.json
           mkdir -p data
