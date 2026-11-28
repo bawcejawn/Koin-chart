@@ -48,11 +48,12 @@ input[type=range]{width:100%;accent-color:var(--up)}
 <div class="notice" id="notDeployed" hidden><b>Opening soon.</b> The pool contract isn't deployed yet, so trading is off. Below is the plan: KOIN with vETH, vUSDT and vUSDC at a 3% fee, and vETH pairs at 1%.</div>
 
 <section class="sec" id="stats">
-  <div class="secHead"><h2>Pool stats</h2><p>From daily snapshots of the contract. "LP return" is how much each pool share grew from trading fees over the period, the honest measure of what liquidity providers earn.</p></div>
-  <div class="panel scroll"><table>
+  <details class="panel"><summary style="cursor:pointer;font-weight:600">Pool stats: liquidity provider returns</summary>
+  <p class="status">From daily snapshots of the contract. "LP return" is how much each pool share grew from trading fees, the honest measure of what liquidity providers earn.</p>
+  <div class="scroll"><table>
     <thead><tr><th>Pool</th><th>Fee</th><th>Liquidity (USD)</th><th>LP return, 7 days</th><th>Yearly rate (if the week repeats)</th><th>Since</th></tr></thead>
     <tbody id="stBody"><tr><td colspan="6" class="empty">Stats start the day after the pools open.</td></tr></tbody>
-  </table></div>
+  </table></div></details>
 </section>
 
 <section class="sec" id="list">

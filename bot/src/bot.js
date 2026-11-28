@@ -185,11 +185,18 @@ class Bot {
   }
 
   // ---- strategy 2: loss-proof loops (KoinDX pairs and our own pools) ----
-  async loopCheck() {
+  // Biggest margin first, then trade the next one down, until no loop pays: one scan runs up to
+  // maxRounds loops back to back, each re-reading the live (or paper-shadow) reserves.
+  async loopCheck(round = 0) {
     const c = this.cfg.loops;
-    if (!c.enabled || Date.now() - this.lastLoopScan < c.scanEverySec * 1000) return;
-    this.lastLoopScan = Date.now();
-    const [koindx, listed] = await Promise.all([fetchPairs(), fetchListed()]);
+    if (!c.enabled) return;
+    if (round === 0) {
+      if (Date.now() - this.lastLoopScan < c.scanEverySec * 1000) return;
+      this.lastLoopScan = Date.now();
+      const [koindx, listed] = await Promise.all([fetchPairs(), fetchListed()]);
+      this.scan = { koindx, listed };
+    }
+    const { koindx, listed } = this.scan;
     const own = this.cfg.ownPools && this.cfg.ownPools.contract ? await this.chain.ownPools(this.cfg.ownPools.contract, this.cfg.ownPools.pairs || []) : [];
     const ownTokens = new Set(own.flatMap(p => [p.t0, p.t1]));
     // Unlisted tokens run their own code inside our signed transaction. Live trading only allows them
@@ -254,7 +261,8 @@ class Bot {
     }
     this.stats.loops++; this.stats.loopProfit += plan.profit;
     this.log(`LOOP ${pathIds.join('>')} [${info.venues.join('+')}]: ${info.amountIn.toFixed(4)} -> ${info.amountOut.toFixed(4)} (+${info.profit.toFixed(4)})`, info.tx ? { tx: info.tx } : undefined);
-    this.record({ kind: 'loop', ...info });
+    this.record({ kind: 'loop', ...info, round });
+    if (round + 1 < (c.maxRounds ?? 10)) return this.loopCheck(round + 1);
   }
 
   // Split a loop into one swap per venue run: consecutive KoinDX hops go through the router in one call,
@@ -285,6 +293,13 @@ class Bot {
   async lowBalanceCheck() {
     const w = await this.wallet();
     const low = fromK(this.cfg.lowBalanceKoin);
+    const lowMana = w.mana < fromK(this.cfg.lowManaKoin ?? 50);
+    if (lowMana && w.koin >= low && Date.now() - (this.manaWarned || 0) > 6 * 3600e3) {
+      this.manaWarned = Date.now();
+      // mana refills by itself over ~5 days; adding KOIN adds mana right away, so treat it like a top-up
+      await this.notifier.send('alert', 'mana', `Bot is low on mana: ${toK(w.mana).toFixed(0)} left`,
+        `The bot has **${toK(w.koin).toFixed(2)} KOIN** but only **${toK(w.mana).toFixed(2)}** of it is spendable mana right now, so it can't make big trades. Mana recharges on its own over about 5 days, or send KOIN to \`${this.address}\` to add mana immediately.`, 24 * 3600e3);
+    }
     if (w.koin < low && Date.now() - this.lowWarned > 6 * 3600e3) {
       this.lowWarned = Date.now();
       this.log(`LOW BALANCE: ${toK(w.koin).toFixed(2)} KOIN (warn below ${this.cfg.lowBalanceKoin}). Top up the bot address ${this.address}.`);

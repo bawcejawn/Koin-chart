@@ -79,7 +79,7 @@ async function scout(pairs) {
   // 2) missing pairs: two well-funded listed tokens with no direct KoinDX pair -> traders route through 2 hops today
   const depth = new Map();
   for (const p of rows) for (const [t, s] of [[p.t0, p.s0], [p.t1, p.s1]]) { const d = depth.get(t) || { s, usd: 0 }; d.usd += p.usd; depth.set(t, d); }
-  const big = [...depth].filter(([, d]) => d.usd >= 50).sort((a, b) => b[1].usd - a[1].usd).slice(0, 12);
+  const big = [...depth].filter(([t, d]) => d.usd >= 50 && t !== 'vhp') // no VHP pools (your call).sort((a, b) => b[1].usd - a[1].usd).slice(0, 12);
   const have = new Set(pairs.map(p => [p.t0, p.t1].sort().join('|')));
   const missing = [];
   for (let i = 0; i < big.length; i++) for (let j = i + 1; j < big.length; j++) {
