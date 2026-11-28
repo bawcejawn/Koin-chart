@@ -14,11 +14,21 @@ const ADDR = {
 };
 const contractAddr = id => (id === 'koin' ? ADDR.KOIN : id === 'vhp' ? ADDR.VHP : id);
 const tokenName = addr => (addr === ADDR.KOIN ? 'koin' : addr === ADDR.VHP ? 'vhp' : addr);
+const GUARD_ABI = require(path.join(__dirname, '../guard/bot-guard-abi.json'));
 const POOL_ABI = require(path.join(__dirname, '../../contracts/pool/build/pool-abi.json'));
 // our own pools are addressed as "own:<poolContract>:<tokenA>:<tokenB>" (tokens as contract addresses)
 const isOwn = id => typeof id === 'string' && id.startsWith('own:');
 const ownParts = id => { const [, c, a, b] = id.split(':'); return { c, a, b }; };
 
+// token.transfer_args {from=1, to=2, value=3} as raw protobuf bytes
+function encodeTransfer(from, to, value) {
+  const out = [];
+  const varint = v => { v = BigInt(v); while (v >= 0x80n) { out.push(Number((v & 0x7fn) | 0x80n)); v >>= 7n; } out.push(Number(v)); };
+  const bytes = (f, b) => { out.push((f << 3) | 2); varint(b.length); out.push(...b); };
+  bytes(1, utils.decodeBase58(from)); if (to) bytes(2, utils.decodeBase58(to));
+  out.push((3 << 3) | 0); varint(value);
+  return new Uint8Array(out);
+}
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Errors that mean "this node had a bad moment", not "the chain said no"
 const TRANSPORT = /invalid json|unexpected token|fetch failed|failed to fetch|ECONN|ETIMEDOUT|EAI_AGAIN|socket|network|timeout|<html|\b5\d\d\b|429|too many/i;
@@ -141,6 +151,21 @@ function makeChain(rpcUrls, verifyUrls = []) {
       return operation;
     },
     async feeSettings(contract) { return (await poolC(contract).functions.get_fee_settings()).result || {}; },
+    // ---- Bot Guard (koinosbox SmartWalletAllowance on the bot's own address) ----
+    // One allowance per token the bot lets a contract move in THIS transaction: exactly this token,
+    // only via transfer, only when called by `caller` (KoinDX router or our pool), only to `to`, at most `value`.
+    // Anything else asking to move the bot's tokens during the transaction is refused.
+    async guardAllowanceOp(bot, token, caller, to, value) {
+      const data = encodeTransfer(bot, to, value);
+      const { operation } = await new Contract({ id: bot, abi: GUARD_ABI, provider }).functions.set_allowance({
+        type: 'transfer_token', contract_id: contractAddr(token), entry_point: 0x27f576ca, caller, data: utils.encodeBase64url(data),
+      }, { onlyOperation: true });
+      return operation;
+    },
+    // does the bot's address carry the guard?
+    async guardActive(bot) {
+      try { const r = await provider.invokeGetContractMetadata(bot); return !!(r && r.value && r.value.authorizes_call_contract && r.value.hash); } catch (e) { return false; }
+    },
     async ownSwapOp(contract, from, tokenIn, tokenOut, amountIn, minOut) {
       const { operation } = await poolC(contract).functions.swap({
         from, token_in: contractAddr(tokenIn), token_out: contractAddr(tokenOut), amount_in: amountIn.toString(), min_out: minOut.toString(),
@@ -191,4 +216,4 @@ function loadSigner(wif) {
   return Signer.fromWif(wif.trim());
 }
 
-module.exports = { resilient, TRANSPORT, makeChain, loadSigner, ADDR, LoopCore: globalThis.LoopCore, isOwn, ownParts, contractAddr };
+module.exports = { encodeTransfer, GUARD_ABI, resilient, TRANSPORT, makeChain, loadSigner, ADDR, LoopCore: globalThis.LoopCore, isOwn, ownParts, contractAddr };

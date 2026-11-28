@@ -1,0 +1,185 @@
+{
+  "methods": {
+    "set_allowance": {
+      "argument": "smartwalletallowance.allowance",
+      "return": "",
+      "description": "Set an allowance in user's contract",
+      "entry_point": 2975241745,
+      "read_only": false,
+      "entry-point": "0xb1569611",
+      "read-only": false
+    },
+    "authorize": {
+      "argument": "authority.authorize_arguments",
+      "return": "authority.authorize_result",
+      "description": "Authorize function",
+      "entry_point": 1244511632,
+      "read_only": false,
+      "entry-point": "0x4a2dbd90",
+      "read-only": false
+    }
+  },
+  "types": "CoAEChpzbWFydHdhbGxldGFsbG93YW5jZS5wcm90bxIUc21hcnR3YWxsZXRhbGxvd2FuY2UaFGtvaW5vcy9vcHRpb25zLnByb3RvIr8BCglhbGxvd2FuY2USOAoEdHlwZRgBIAEoDjIkLnNtYXJ0d2FsbGV0YWxsb3dhbmNlLmFsbG93YW5jZV90eXBlUgR0eXBlEiUKC2NvbnRyYWN0X2lkGAIgASgMQgSAtRgGUgpjb250cmFjdElkEh8KC2VudHJ5X3BvaW50GAMgASgNUgplbnRyeVBvaW50EhwKBmNhbGxlchgEIAEoDEIEgLUYBlIGY2FsbGVyEhIKBGRhdGEYBSABKAxSBGRhdGEiegoKYWxsb3dhbmNlcxIrCg50cmFuc2FjdGlvbl9pZBgBIAEoDEIEgLUYAlINdHJhbnNhY3Rpb25JZBI/CgphbGxvd2FuY2VzGAIgAygLMh8uc21hcnR3YWxsZXRhbGxvd2FuY2UuYWxsb3dhbmNlUgphbGxvd2FuY2VzKnAKDmFsbG93YW5jZV90eXBlEg0KCXVuZGVmaW5lZBAAEhIKDnRyYW5zZmVyX3Rva2VuEAESEAoMdHJhbnNmZXJfbmZ0EAISDgoKbWludF90b2tlbhADEg4KCmJ1cm5fdG9rZW4QBBIJCgVvdGhlchBkYgZwcm90bzMKjwQKHGtvaW5vcy9jaGFpbi9hdXRob3JpdHkucHJvdG8SDGtvaW5vcy5jaGFpbhoUa29pbm9zL29wdGlvbnMucHJvdG8ifwoJY2FsbF9kYXRhEiUKC2NvbnRyYWN0X2lkGAEgASgMQgSAtRgGUgpjb250cmFjdElkEh8KC2VudHJ5X3BvaW50GAIgASgNUgplbnRyeVBvaW50EhYKBmNhbGxlchgDIAEoDFIGY2FsbGVyEhIKBGRhdGEYBCABKAxSBGRhdGEihgEKE2F1dGhvcml6ZV9hcmd1bWVudHMSNAoEdHlwZRgBIAEoDjIgLmtvaW5vcy5jaGFpbi5hdXRob3JpemF0aW9uX3R5cGVSBHR5cGUSMAoEY2FsbBgCIAEoCzIXLmtvaW5vcy5jaGFpbi5jYWxsX2RhdGFIAFIEY2FsbIgBAUIHCgVfY2FsbCIoChBhdXRob3JpemVfcmVzdWx0EhQKBXZhbHVlGAEgASgIUgV2YWx1ZSpZChJhdXRob3JpemF0aW9uX3R5cGUSEQoNY29udHJhY3RfY2FsbBAAEhsKF3RyYW5zYWN0aW9uX2FwcGxpY2F0aW9uEAESEwoPY29udHJhY3RfdXBsb2FkEAJCNFoyZ2l0aHViLmNvbS9rb2lub3Mva29pbm9zLXByb3RvLWdvbGFuZy9rb2lub3MvY2hhaW5iBnByb3RvMw==",
+  "koilib_types": {
+    "nested": {
+      "smartwalletallowance": {
+        "nested": {
+          "allowance_type": {
+            "values": {
+              "undefined": 0,
+              "transfer_token": 1,
+              "transfer_nft": 2,
+              "mint_token": 3,
+              "burn_token": 4,
+              "other": 100
+            }
+          },
+          "allowance": {
+            "fields": {
+              "type": {
+                "type": "allowance_type",
+                "id": 1
+              },
+              "contract_id": {
+                "type": "bytes",
+                "id": 2,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "entry_point": {
+                "type": "uint32",
+                "id": 3
+              },
+              "caller": {
+                "type": "bytes",
+                "id": 4,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "data": {
+                "type": "bytes",
+                "id": 5
+              }
+            }
+          },
+          "allowances": {
+            "fields": {
+              "transaction_id": {
+                "type": "bytes",
+                "id": 1,
+                "options": {
+                  "(koinos.btype)": "HEX"
+                }
+              },
+              "allowances": {
+                "rule": "repeated",
+                "type": "allowance",
+                "id": 2
+              }
+            }
+          }
+        }
+      },
+      "koinos": {
+        "options": {
+          "go_package": "github.com/koinos/koinos-proto-golang/koinos"
+        },
+        "nested": {
+          "bytes_type": {
+            "values": {
+              "BASE64": 0,
+              "BASE58": 1,
+              "HEX": 2,
+              "BLOCK_ID": 3,
+              "TRANSACTION_ID": 4,
+              "CONTRACT_ID": 5,
+              "ADDRESS": 6
+            }
+          },
+          "_btype": {
+            "oneof": [
+              "btype"
+            ]
+          },
+          "btype": {
+            "type": "bytes_type",
+            "id": 50000,
+            "extend": "google.protobuf.FieldOptions",
+            "options": {
+              "proto3_optional": true
+            }
+          },
+          "chain": {
+            "options": {
+              "go_package": "github.com/koinos/koinos-proto-golang/koinos/chain"
+            },
+            "nested": {
+              "authorization_type": {
+                "values": {
+                  "contract_call": 0,
+                  "transaction_application": 1,
+                  "contract_upload": 2
+                }
+              },
+              "call_data": {
+                "fields": {
+                  "contract_id": {
+                    "type": "bytes",
+                    "id": 1,
+                    "options": {
+                      "(btype)": "ADDRESS"
+                    }
+                  },
+                  "entry_point": {
+                    "type": "uint32",
+                    "id": 2
+                  },
+                  "caller": {
+                    "type": "bytes",
+                    "id": 3
+                  },
+                  "data": {
+                    "type": "bytes",
+                    "id": 4
+                  }
+                }
+              },
+              "authorize_arguments": {
+                "oneofs": {
+                  "_call": {
+                    "oneof": [
+                      "call"
+                    ]
+                  }
+                },
+                "fields": {
+                  "type": {
+                    "type": "authorization_type",
+                    "id": 1
+                  },
+                  "call": {
+                    "type": "call_data",
+                    "id": 2,
+                    "options": {
+                      "proto3_optional": true
+                    }
+                  }
+                }
+              },
+              "authorize_result": {
+                "fields": {
+                  "value": {
+                    "type": "bool",
+                    "id": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

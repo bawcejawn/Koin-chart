@@ -54,6 +54,12 @@ jobs:
         run: node page.js
         working-directory: integration
         timeout-minutes: 10
+        env: { KEEP_NODE: '1' }
+      - name: Bot Guard attack test (a scam token tries to rob the trader)
+        if: always()
+        run: (cd ../bot && npm install --no-audit --no-fund --silent) && node guard.js
+        working-directory: integration
+        timeout-minutes: 10
       - name: Node logs (on failure)
         if: failure()
         run: docker compose -p localkoinos logs --tail 60 || true

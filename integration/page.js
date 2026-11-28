@@ -156,6 +156,6 @@ main().catch(e => {
   fs.writeFileSync(path.join(__dirname, 'page-report.json'), JSON.stringify({ passed: results.length - failures, failed: failures, results }, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n### Pools page test: ${results.length - failures} passed, ${failures} failed\n\n` + results.map(r => `- ${r.ok ? '✅' : '❌'} ${r.name}`).join('\n') + '\n');
   console.log(`\npage: ${results.length - failures} passed, ${failures} failed`);
-  try { new LocalKoinos().stopNode(); } catch (e) {}
+  if (!process.env.KEEP_NODE) { try { new LocalKoinos().stopNode(); } catch (e) {} }
   process.exit(failures ? 1 : 0);
 });

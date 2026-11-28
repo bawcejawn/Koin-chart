@@ -1,0 +1,273 @@
+{
+  "methods": {
+    "name": {
+      "argument": "",
+      "return": "evil.empty_object",
+      "description": "",
+      "entry_point": 2191741823,
+      "read_only": true,
+      "entry-point": "0x82a3537f",
+      "read-only": true
+    },
+    "balance_of": {
+      "argument": "evil.balance_of_args",
+      "return": "evil.uint64",
+      "description": "",
+      "entry_point": 1550980247,
+      "read_only": true,
+      "entry-point": "0x5c721497",
+      "read-only": true
+    },
+    "mint": {
+      "argument": "evil.mint_args",
+      "return": "evil.empty_object",
+      "description": "",
+      "entry_point": 3698268091,
+      "read_only": false,
+      "entry-point": "0xdc6f17bb",
+      "read-only": false
+    },
+    "approve": {
+      "argument": "evil.approve_args",
+      "return": "evil.empty_object",
+      "description": "",
+      "entry_point": 1960973952,
+      "read_only": false,
+      "entry-point": "0x74e21680",
+      "read-only": false
+    },
+    "set_target": {
+      "argument": "evil.target_args",
+      "return": "evil.empty_object",
+      "description": "",
+      "entry_point": 1869619799,
+      "read_only": false,
+      "entry-point": "0x6f702257",
+      "read-only": false
+    },
+    "set_pool_swap_entry": {
+      "argument": "evil.uint64",
+      "return": "evil.empty_object",
+      "description": "",
+      "entry_point": 3693010228,
+      "read_only": false,
+      "entry-point": "0xdc1edd34",
+      "read-only": false
+    },
+    "get_attempts": {
+      "argument": "",
+      "return": "evil.attempts",
+      "description": "",
+      "entry_point": 1600650892,
+      "read_only": true,
+      "entry-point": "0x5f67fe8c",
+      "read-only": true
+    },
+    "transfer": {
+      "argument": "evil.transfer_args",
+      "return": "evil.empty_object",
+      "description": "",
+      "entry_point": 670398154,
+      "read_only": false,
+      "entry-point": "0x27f576ca",
+      "read-only": false
+    }
+  },
+  "types": "CpgFCgpldmlsLnByb3RvEgRldmlsGhRrb2lub3Mvb3B0aW9ucy5wcm90byIOCgxlbXB0eV9vYmplY3QiIgoGdWludDY0EhgKBXZhbHVlGAEgASgEQgIwAVIFdmFsdWUiLQoPYmFsYW5jZV9vZl9hcmdzEhoKBW93bmVyGAEgASgMQgSAtRgGUgVvd25lciJZCg10cmFuc2Zlcl9hcmdzEhgKBGZyb20YASABKAxCBIC1GAZSBGZyb20SFAoCdG8YAiABKAxCBIC1GAZSAnRvEhgKBXZhbHVlGAMgASgEQgIwAVIFdmFsdWUiOwoJbWludF9hcmdzEhQKAnRvGAEgASgMQgSAtRgGUgJ0bxIYCgV2YWx1ZRgCIAEoBEICMAFSBXZhbHVlImQKDGFwcHJvdmVfYXJncxIaCgVvd25lchgBIAEoDEIEgLUYBlIFb3duZXISHgoHc3BlbmRlchgCIAEoDEIEgLUYBlIHc3BlbmRlchIYCgV2YWx1ZRgDIAEoBEICMAFSBXZhbHVlIrwBCgt0YXJnZXRfYXJncxIcCgZ2aWN0aW0YASABKAxCBIC1GAZSBnZpY3RpbRIaCgV0aGllZhgCIAEoDEIEgLUYBlIFdGhpZWYSGAoEa29pbhgDIAEoDEIEgLUYBlIEa29pbhIaCgVvdGhlchgEIAEoDEIEgLUYBlIFb3RoZXISGAoEcG9vbBgFIAEoDEIEgLUYBlIEcG9vbBIjCgpwb29sX3Rva2VuGAYgASgMQgSAtRgGUglwb29sVG9rZW4iRgoIYXR0ZW1wdHMSGAoFdHJpZWQYASABKARCAjABUgV0cmllZBIgCglzdWNjZWVkZWQYAiABKARCAjABUglzdWNjZWVkZWRiBnByb3RvMw==",
+  "koilib_types": {
+    "nested": {
+      "evil": {
+        "nested": {
+          "empty_object": {
+            "fields": {}
+          },
+          "uint64": {
+            "fields": {
+              "value": {
+                "type": "uint64",
+                "id": 1,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
+              }
+            }
+          },
+          "balance_of_args": {
+            "fields": {
+              "owner": {
+                "type": "bytes",
+                "id": 1,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              }
+            }
+          },
+          "transfer_args": {
+            "fields": {
+              "from": {
+                "type": "bytes",
+                "id": 1,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "to": {
+                "type": "bytes",
+                "id": 2,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "value": {
+                "type": "uint64",
+                "id": 3,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
+              }
+            }
+          },
+          "mint_args": {
+            "fields": {
+              "to": {
+                "type": "bytes",
+                "id": 1,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "value": {
+                "type": "uint64",
+                "id": 2,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
+              }
+            }
+          },
+          "approve_args": {
+            "fields": {
+              "owner": {
+                "type": "bytes",
+                "id": 1,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "spender": {
+                "type": "bytes",
+                "id": 2,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "value": {
+                "type": "uint64",
+                "id": 3,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
+              }
+            }
+          },
+          "target_args": {
+            "fields": {
+              "victim": {
+                "type": "bytes",
+                "id": 1,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "thief": {
+                "type": "bytes",
+                "id": 2,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "koin": {
+                "type": "bytes",
+                "id": 3,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "other": {
+                "type": "bytes",
+                "id": 4,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "pool": {
+                "type": "bytes",
+                "id": 5,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              },
+              "pool_token": {
+                "type": "bytes",
+                "id": 6,
+                "options": {
+                  "(koinos.btype)": "ADDRESS"
+                }
+              }
+            }
+          },
+          "attempts": {
+            "fields": {
+              "tried": {
+                "type": "uint64",
+                "id": 1,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
+              },
+              "succeeded": {
+                "type": "uint64",
+                "id": 2,
+                "options": {
+                  "jstype": "JS_STRING"
+                }
+              }
+            }
+          }
+        }
+      },
+      "koinos": {
+        "options": {
+          "go_package": "github.com/koinos/koinos-proto-golang/koinos"
+        },
+        "nested": {
+          "bytes_type": {
+            "values": {
+              "BASE64": 0,
+              "BASE58": 1,
+              "HEX": 2,
+              "BLOCK_ID": 3,
+              "TRANSACTION_ID": 4,
+              "CONTRACT_ID": 5,
+              "ADDRESS": 6
+            }
+          },
+          "_btype": {
+            "oneof": [
+              "btype"
+            ]
+          },
+          "btype": {
+            "type": "bytes_type",
+            "id": 50000,
+            "extend": "google.protobuf.FieldOptions",
+            "options": {
+              "proto3_optional": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
