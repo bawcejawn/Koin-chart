@@ -27,6 +27,8 @@ async function expectFail(name, fn) {
 const big = (v) => BigInt(v || 0);
 const k = (v) => Number(big(v)) / 1e8;
 
+let poolId = '';
+const POOL_ID = () => poolId;
 async function main() {
   const lk = new LocalKoinos();
   const guard = setTimeout(() => { console.error('FATAL: local chain did not come up in 6 minutes'); process.exit(2); }, 6 * 60e3);
@@ -43,6 +45,11 @@ async function main() {
 
   const token = (id, s) => new Contract({ id, abi: TOKEN_ABI, provider, signer: s });
   const balance = async (id, who) => big((await token(id, owner).functions.balance_of({ owner: who })).result?.value);
+  // the local chain's KOIN is an older build without approve/allowance (mainnet KOIN has them)
+  let koinHasApprove = true;
+  try { await token(KOIN, owner).functions.allowance({ owner: owner.address, spender: owner.address }); } catch (e) { koinHasApprove = false; }
+  results.push({ name: 'info: local KOIN has approve: ' + koinHasApprove, ok: true });
+  const approve = (id, s, value) => (id === KOIN && !koinHasApprove) ? [] : [[token(id, s).functions.approve, { owner: s.address, spender: POOL_ID(), value: value.toString() }]];
   const send = async (s, ops) => {
     const tx = new Transaction({ signer: s, provider, options: { rcLimit: '1000000000' } });
     for (const [fn, args] of ops) await tx.pushOperation(fn, args);
@@ -74,6 +81,7 @@ async function main() {
   const dep = await poolDeploy.deploy({ abi: JSON.stringify(POOL_ABI), authorizesCallContract: false, authorizesTransactionApplication: false, authorizesUploadContract: false });
   await dep.transaction.wait('byBlock', 60000);
   const POOL = keys.pool.address;
+  poolId = POOL;
   const pool = (s) => new Contract({ id: POOL, abi: POOL_ABI, provider, signer: s });
   await expectFail('initialize without the contract key fails', () => send(stranger, [[pool(stranger).functions.initialize, { owner: stranger.address }]]));
   await send(keys.pool, [[pool(keys.pool).functions.initialize, { owner: owner.address }]]);
@@ -96,8 +104,8 @@ async function main() {
 
   // seed liquidity: approve both tokens to the pool and add in one transaction
   const addLiq = (s, p, amtA, amtB) => send(s, [
-    [token(p.a, s).functions.approve, { owner: s.address, spender: POOL, value: amtA.toString() }],
-    [token(p.b, s).functions.approve, { owner: s.address, spender: POOL, value: amtB.toString() }],
+    ...approve(p.a, s, amtA.toString()),
+    ...approve(p.b, s, amtB.toString()),
     [pool(s).functions.add_liquidity, { from: s.address, token_a: p.a, token_b: p.b, amount_a: amtA.toString(), amount_b: amtB.toString(), min_shares: '1' }],
   ]);
   for (const p of plan) await addLiq(owner, p, p.amtA, p.amtB);
@@ -118,11 +126,11 @@ async function main() {
   const quote = big((await pool(trader).functions.get_quote({ token_in: KOIN, token_out: tok.tUSDT, amount_in: amountIn.toString() })).result?.value);
   const usdtBefore = await balance(tok.tUSDT, trader.address);
   await expectFail('swap with min_out above the quote fails', () => send(trader, [
-    [token(KOIN, trader).functions.approve, { owner: trader.address, spender: POOL, value: amountIn.toString() }],
+    ...approve(KOIN, trader, amountIn.toString()),
     [pool(trader).functions.swap, { from: trader.address, token_in: KOIN, token_out: tok.tUSDT, amount_in: amountIn.toString(), min_out: (quote + 1n).toString() }],
   ]));
   await send(trader, [
-    [token(KOIN, trader).functions.approve, { owner: trader.address, spender: POOL, value: amountIn.toString() }],
+    ...approve(KOIN, trader, amountIn.toString()),
     [pool(trader).functions.swap, { from: trader.address, token_in: KOIN, token_out: tok.tUSDT, amount_in: amountIn.toString(), min_out: quote.toString() }],
   ]);
   const got = (await balance(tok.tUSDT, trader.address)) - usdtBefore;
@@ -139,7 +147,7 @@ async function main() {
   const t2 = 5n * E8;
   const q2 = big((await pool(trader).functions.get_quote({ token_in: tok.tUSDT, token_out: tok.tETH, amount_in: t2.toString() })).result?.value);
   await send(trader, [
-    [token(tok.tUSDT, trader).functions.approve, { owner: trader.address, spender: POOL, value: t2.toString() }],
+    ...approve(tok.tUSDT, trader, t2.toString()),
     [pool(trader).functions.swap, { from: trader.address, token_in: tok.tUSDT, token_out: tok.tETH, amount_in: t2.toString(), min_out: q2.toString() }],
   ]);
   check('1% tUSDT -> tETH swap filled', q2 > 0n, { tETH: k(q2) });
