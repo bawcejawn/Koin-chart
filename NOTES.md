@@ -62,3 +62,4 @@ Running log for the overnight check-ins. Read this first, add to it every time.
   - To verify on mainnet with a tiny trade: KoinDX router's KOIN transfer goes through the guard allowance (caller = router).
   - Fees: all claimed fees reinvested; contract add_liquidity has shares_to so shares go to the user's wallet (removable from pools page). KOIN pools matched with bot KOIN up to 2,000/week.
   - Paper bot now checks every 5 min (public node courtesy) until it runs on the user's PC.
+- 2026-11-28 16:55 UTC check-in 2: daily summary posted (issue #3; dedupe works across paper restarts), heartbeats reach bot-status (dashboard live), alerts green, CI green incl. guard attack test. Paper runs now save results even when cancelled.

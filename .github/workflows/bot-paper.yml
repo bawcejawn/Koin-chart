@@ -45,6 +45,7 @@ jobs:
           timeout "${{ github.event.inputs.minutes }}m" node src/index.js || true
           node -e "const fs=require('fs');const l=fs.existsSync('data/ledger.jsonl')?fs.readFileSync('data/ledger.jsonl','utf8').trim().split('\n').filter(Boolean).length:0;console.log('ledger entries:',l)"
       - name: Save results to paper-results branch
+        if: always()   # keep the data even if the run is cancelled or times out
         run: |
           stamp=$(date -u +%Y%m%dT%H%MZ)
           mkdir -p /tmp/out && cp -r bot/data /tmp/out/$stamp
