@@ -1,24 +1,24 @@
 {
-  "at": "2026-11-28T16:25:21.247Z",
+  "at": "2026-11-28T17:25:06.434Z",
   "mode": "paper",
   "address": "PAPER",
   "producer": "1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd",
   "paused": false,
-  "koin": 10562.75693458,
+  "koin": 10576.17881221,
   "vhp": 0,
-  "mana": 10562.75693458,
+  "mana": 10576.17881221,
   "node": {
-    "height": 41464939,
-    "lagSec": 0,
-    "url": "https://api.koinos.io"
+    "height": 41466075,
+    "lagSec": -1,
+    "url": "https://api.koinosblocks.com"
   },
   "today": {
     "buys": 1,
     "koinOnVhp": 19437.24306542,
     "extraVhp": 1331.76634685,
     "vhpSent": 20769.00941227,
-    "loops": 0,
-    "loopProfit": 0
+    "loops": 3,
+    "loopProfit": 13.42187763
   },
   "totals": {
     "since": "2026-11-28T16:25:05.608Z",
@@ -26,13 +26,13 @@
     "koinSpent": 19437.24306542,
     "vhpGot": 20769.00941227,
     "extraVhpVsBurn": 1331.76634685,
-    "loops": 0,
-    "loopProfitKoin": 0,
+    "loops": 3,
+    "loopProfitKoin": 13.42187763,
     "skipped": 0,
     "errors": 0,
     "refills": 0,
     "refilledKoin": 0,
-    "paperKoin": 10562.75693458,
+    "paperKoin": 10576.17881221,
     "paperVhpSent": 20769.00941227
   }
 }
