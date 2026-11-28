@@ -1,0 +1,52 @@
+[2026-11-28T00:41:36.285Z] PAPER started. address=PAPER producer=1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd reserve=100 KOIN minEdge=1%
+[2026-11-28T00:41:37.174Z] PAPER BUY VHP: 900.0000 KOIN -> 1031.6014 VHP (+131.6014 vs burning, edge 14.987%)
+[2026-11-28T00:41:37.175Z] PAPER (paper) would send 1031.6014 VHP to producer 1DAHmrQJMAbn4FmMMrew78wPUizjVdbBrd
+[2026-11-28T00:41:54.697Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:03.705Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:06.704Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:12.702Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:15.702Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:18.705Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:24.706Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:36.712Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:45.717Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:53.545Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T00:42:54.716Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:42:57.715Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:00.730Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:15.724Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:18.730Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:21.727Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:24.726Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:30.728Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:33.732Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:36.730Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:39.730Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:42.734Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:45.731Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:48.745Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T00:43:54.737Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:43:57.739Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:03.740Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:06.738Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:09.740Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:12.738Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:15.740Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:27.743Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:30.745Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:39.746Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:42.747Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:48.755Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:51.951Z] PAPER error: invalid json response body at https://api.koinos.io/ reason: Unexpected token '<', "<html>
+<h"... is not valid JSON
+[2026-11-28T00:44:54.754Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:44:57.756Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:45:03.756Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:45:06.760Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:45:09.756Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:45:18.762Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:45:24.765Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:45:30.770Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
+[2026-11-28T00:45:33.765Z] PAPER VHP edge 14.26% but only 0.00 KOIN spendable (reserve 100 KOIN). Top up the bot.
