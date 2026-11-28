@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bot dashboard · Koin-chart</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/base.css?v=1">
+<style>
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tile b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--mute)}
+.state{display:inline-flex;align-items:center;gap:8px;font-weight:600;padding:6px 12px;border-radius:999px;font-size:14px}
+.state.ok{background:#12261b;color:#7ee2a8}.state.warn{background:#2a2111;color:#ffcf99}.state.bad{background:#2a1414;color:#ff9c9c}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.actions a{text-decoration:none}
+svg.spark{width:100%;height:120px;display:block}
+.small{font-size:12px;color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="top"><header>
+  <h1>Bot dashboard<small><a href="./">VHP/KOIN chart</a> · <a href="pools.html">Pools</a></small></h1>
+  <div class="stat"><b id="hState">—</b><span>Status</span></div>
+  <div class="stat"><b id="hAge">—</b><span>Last report</span></div>
+  <div class="stat"><b id="hMode">—</b><span>Mode</span></div>
+</header></div>
+
+<section class="sec">
+  <div class="panel">
+    <div id="stateLine" class="state warn">Loading…</div>
+    <p class="small" id="stateNote" style="margin:8px 0 0"></p>
+    <div class="actions">
+      <a class="btn" id="pauseBtn" target="_blank" rel="noopener">Pause the bot</a>
+      <a class="btn" id="resumeBtn" target="_blank" rel="noopener">Resume (close the pause issue)</a>
+    </div>
+    <p class="small" style="margin:8px 0 0">Pause opens a GitHub issue with the <b>pause-bot</b> label; the bot stops trading within about 2 minutes. Close that issue to resume. Only you can add that label. On the PC, <code>stop-bot.bat</code> does the same instantly.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="secHead"><h2>Right now</h2></div>
+  <div class="tiles" id="now"></div>
+</section>
+
+<section class="sec">
+  <div class="secHead"><h2>Last 24 hours</h2></div>
+  <div class="tiles" id="day"></div>
+</section>
+
+<section class="sec">
+  <div class="secHead"><h2>Bot KOIN balance</h2><p>From the last ~8 days of reports. Refills show as jumps up; VHP buys as steps down.</p></div>
+  <div class="panel"><svg class="spark" id="spark" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="Bot KOIN balance over time"></svg><p class="small" id="sparkNote"></p></div>
+</section>
+
+<section class="sec">
+  <div class="secHead"><h2>Owner fees waiting in your pools</h2></div>
+  <div class="panel scroll"><table><tbody id="fees"><tr><td class="empty">Pools not deployed yet.</td></tr></tbody></table></div>
+</section>
+
+<p class="foot">This page reads the status the bot publishes every 30 minutes (branch <code>bot-status</code>) and the pool contract on chain. It holds no keys and can't move funds. Balances shown here are public on chain anyway.</p>
+
+<script src="vendor/koilib-9.4.1.min.js"></script>
+<script src="js/poolabi.js?v=202611281609"></script>
+<script src="js/pools-config.js?v=202611281609"></script>
+<script src="js/dashboard.js?v=202611281609"></script>
+</body>
+</html>

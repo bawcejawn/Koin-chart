@@ -343,6 +343,31 @@
   }
   const guarded = fn => async (...a) => { try { await fn(...a); } catch (e) { console.error(e); toast(String(e && e.message || e), 'err', 10000); } };
 
+  // ---------- public stats (daily snapshots on the stats branch) ----------
+  async function renderStats() {
+    if (!CONTRACT) return;
+    let snaps = [];
+    try {
+      const t = await (await fetch('https://raw.githubusercontent.com/bawcejawn/Koin-chart/stats/pools.jsonl?t=' + Date.now())).text();
+      snaps = t.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+    } catch (e) { return; }
+    if (!snaps.length) return;
+    // value of one share, in "pool units": sqrt(ra*rb)/shares. Grows only from fees left in the pool.
+    const val = p => { const s = Number(p.shares); return s ? Math.sqrt(Number(p.ra) * Number(p.rb)) / s : 0; };
+    const last = snaps[snaps.length - 1];
+    const rows = last.pools.map(p => {
+      const key = p.a + p.b;
+      const old = snaps.filter(x => Date.now() - new Date(x.at).getTime() >= 6.5 * 864e5).map(x => x.pools.find(q => q.a + q.b === key)).filter(Boolean).pop();
+      const firstAt = snaps.find(x => x.pools.some(q => q.a + q.b === key)).at;
+      const r7 = old && val(old) ? val(p) / val(old) - 1 : null;
+      const A = byId(p.a), B = byId(p.b);
+      const live = POOLS.find(x => T[x.A].id === p.a && T[x.B].id === p.b);
+      return `<tr><td>${A ? A.sym : '?'} / ${B ? B.sym : '?'}</td><td><span class="feeTag">${p.fee / 100}%</span></td><td>${live ? usd(poolUsd(live)) : '—'}</td>
+        <td>${r7 == null ? 'after 7 days' : (r7 * 100).toFixed(3) + '%'}</td><td>${r7 == null ? '—' : ((Math.pow(1 + r7, 365 / 7) - 1) * 100).toFixed(1) + '%'}</td><td>${esc(firstAt.slice(0, 10))}</td></tr>`;
+    });
+    $('stBody').innerHTML = rows.join('') || '<tr><td colspan="6" class="empty">No pools yet.</td></tr>';
+  }
+
   function renderAll() { renderWallet(); renderPools(); fillSelects(); renderSwap(); renderAdd(); renderRem(); renderFees(); }
   async function refresh() {
     try {
@@ -379,7 +404,7 @@
     $('feeBody').onclick = e => { const b = e.target.closest('[data-claim]'); if (b) guarded(doClaim)(b.dataset.claim); };
     let saved = null; try { saved = localStorage.getItem('kc-wallet'); } catch (e) {}
     if (saved) W.address = saved;
-    renderActs(); renderAll(); refresh();
+    renderActs(); renderAll(); refresh().then(renderStats);
     setInterval(refresh, 20000);
   });
 

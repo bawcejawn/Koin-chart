@@ -1,0 +1,42 @@
+name: Pool stats and pair scout
+
+# Daily: snapshot our pools (public stats on pools.html) and KoinDX volumes.
+# Mondays: also email the weekly pair scout (pairs worth opening a pool for).
+on:
+  schedule:
+    - cron: '41 12 * * *'   # daily ~7:41 AM ET (Monday's run also sends the scout)
+  workflow_dispatch:
+    inputs:
+      scout: { description: 'Send the pair scout now', type: boolean, default: false }
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency: { group: pool-stats, cancel-in-progress: false }
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Get the stats branch
+        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: |
+          if git clone -q --depth 1 --branch stats "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" stats 2>/dev/null; then echo cloned; else mkdir stats && cd stats && git init -q -b stats && git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"; fi
+      - name: Snapshot (and scout on Mondays)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTIFY_USER: bawcejawn
+          SCOUT: ${{ github.event.inputs.scout == 'true' && '1' || '0' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$(date -u +%u)" = "1" ]; then export SCOUT=1; fi
+          node scripts/pool-stats.mjs
+      - name: Save
+        working-directory: stats
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A; git commit -q -m "stats $(date -u +%F)" || exit 0
+          git push -q origin stats
