@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package pool;
+
+import "koinos/options.proto";
+
+message empty_object {}
+
+message address {
+  bytes value = 1 [(koinos.btype) = ADDRESS];
+}
+
+message uint64 {
+  uint64 value = 1 [jstype = JS_STRING];
+}
+
+// One pool for a pair of tokens. token_a < token_b (byte order).
+message pool_object {
+  bool exists = 1;
+  bytes token_a = 2 [(koinos.btype) = ADDRESS];
+  bytes token_b = 3 [(koinos.btype) = ADDRESS];
+  uint64 reserve_a = 4 [jstype = JS_STRING];
+  uint64 reserve_b = 5 [jstype = JS_STRING];
+  uint32 fee_bps = 6;            // trading fee, fixed at creation, max 300 (3%)
+  uint32 owner_share_bps = 7;    // share of the fee kept for the owner (1000 = 10% of the fee)
+  uint64 total_shares = 8 [jstype = JS_STRING];
+  uint64 owner_fees_a = 9 [jstype = JS_STRING];
+  uint64 owner_fees_b = 10 [jstype = JS_STRING];
+}
+
+message initialize_arguments {
+  bytes owner = 1 [(koinos.btype) = ADDRESS];
+}
+
+message pair_arguments {
+  bytes token_a = 1 [(koinos.btype) = ADDRESS];
+  bytes token_b = 2 [(koinos.btype) = ADDRESS];
+}
+
+message create_pool_arguments {
+  bytes token_a = 1 [(koinos.btype) = ADDRESS];
+  bytes token_b = 2 [(koinos.btype) = ADDRESS];
+  uint32 fee_bps = 3;
+}
+
+message add_liquidity_arguments {
+  bytes from = 1 [(koinos.btype) = ADDRESS];
+  bytes token_a = 2 [(koinos.btype) = ADDRESS];
+  bytes token_b = 3 [(koinos.btype) = ADDRESS];
+  uint64 amount_a = 4 [jstype = JS_STRING];
+  uint64 amount_b = 5 [jstype = JS_STRING];
+  uint64 min_shares = 6 [jstype = JS_STRING];
+}
+
+message add_liquidity_result {
+  uint64 shares = 1 [jstype = JS_STRING];
+  uint64 amount_a = 2 [jstype = JS_STRING];
+  uint64 amount_b = 3 [jstype = JS_STRING];
+}
+
+message remove_liquidity_arguments {
+  bytes from = 1 [(koinos.btype) = ADDRESS];
+  bytes token_a = 2 [(koinos.btype) = ADDRESS];
+  bytes token_b = 3 [(koinos.btype) = ADDRESS];
+  uint64 shares = 4 [jstype = JS_STRING];
+  uint64 min_a = 5 [jstype = JS_STRING];
+  uint64 min_b = 6 [jstype = JS_STRING];
+}
+
+message remove_liquidity_result {
+  uint64 amount_a = 1 [jstype = JS_STRING];
+  uint64 amount_b = 2 [jstype = JS_STRING];
+}
+
+message swap_arguments {
+  bytes from = 1 [(koinos.btype) = ADDRESS];
+  bytes token_in = 2 [(koinos.btype) = ADDRESS];
+  bytes token_out = 3 [(koinos.btype) = ADDRESS];
+  uint64 amount_in = 4 [jstype = JS_STRING];
+  uint64 min_out = 5 [jstype = JS_STRING];
+  bytes receiver = 6 [(koinos.btype) = ADDRESS];
+}
+
+message quote_arguments {
+  bytes token_in = 1 [(koinos.btype) = ADDRESS];
+  bytes token_out = 2 [(koinos.btype) = ADDRESS];
+  uint64 amount_in = 3 [jstype = JS_STRING];
+}
+
+message shares_arguments {
+  bytes token_a = 1 [(koinos.btype) = ADDRESS];
+  bytes token_b = 2 [(koinos.btype) = ADDRESS];
+  bytes account = 3 [(koinos.btype) = ADDRESS];
+}
+
+message claim_arguments {
+  bytes token_a = 1 [(koinos.btype) = ADDRESS];
+  bytes token_b = 2 [(koinos.btype) = ADDRESS];
+  bytes to = 3 [(koinos.btype) = ADDRESS];
+}
+
+// Calls to KCS-4 token contracts
+message token_transfer_arguments {
+  bytes from = 1 [(koinos.btype) = ADDRESS];
+  bytes to = 2 [(koinos.btype) = ADDRESS];
+  uint64 value = 3 [jstype = JS_STRING];
+}
+
+// Events
+message swap_event {
+  bytes from = 1 [(koinos.btype) = ADDRESS];
+  bytes token_in = 2 [(koinos.btype) = ADDRESS];
+  bytes token_out = 3 [(koinos.btype) = ADDRESS];
+  uint64 amount_in = 4 [jstype = JS_STRING];
+  uint64 amount_out = 5 [jstype = JS_STRING];
+  uint64 fee = 6 [jstype = JS_STRING];
+  uint64 owner_fee = 7 [jstype = JS_STRING];
+}
+
+message sync_event {
+  bytes token_a = 1 [(koinos.btype) = ADDRESS];
+  bytes token_b = 2 [(koinos.btype) = ADDRESS];
+  uint64 reserve_a = 3 [jstype = JS_STRING];
+  uint64 reserve_b = 4 [jstype = JS_STRING];
+}
+
+message liquidity_event {
+  bytes account = 1 [(koinos.btype) = ADDRESS];
+  bytes token_a = 2 [(koinos.btype) = ADDRESS];
+  bytes token_b = 3 [(koinos.btype) = ADDRESS];
+  uint64 amount_a = 4 [jstype = JS_STRING];
+  uint64 amount_b = 5 [jstype = JS_STRING];
+  uint64 shares = 6 [jstype = JS_STRING];
+  bool added = 7;
+}
+
+message pool_created_event {
+  bytes token_a = 1 [(koinos.btype) = ADDRESS];
+  bytes token_b = 2 [(koinos.btype) = ADDRESS];
+  uint32 fee_bps = 3;
+  uint32 owner_share_bps = 4;
+}

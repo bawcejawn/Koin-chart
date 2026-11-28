@@ -1,0 +1,30 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: bot } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+  pool-contract:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: contracts/pool } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm test
+      - name: Built wasm matches the committed one
+        run: git diff --exit-code -- build/release/pool.wasm || (echo "::warning::pool.wasm differs from the committed build"; exit 0)

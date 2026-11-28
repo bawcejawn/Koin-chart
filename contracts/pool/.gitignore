@@ -1,0 +1,10 @@
+node_modules/
+output.wasm
+output.wat
+assembly/__tests__/*.wasm
+assembly/__tests__/*.wat
+build/*
+!build/release/
+build/release/*
+!build/release/pool.wasm
+!build/pool-abi.json
