@@ -154,13 +154,14 @@ function makeChain(rpcUrls, verifyUrls = []) {
     },
     async feeSettings(contract) { return (await poolC(contract).functions.get_fee_settings()).result || {}; },
     // ---- Bot Guard (koinosbox SmartWalletAllowance on the bot's own address) ----
-    // One allowance per token the bot lets a contract move in THIS transaction: exactly this token,
-    // only via transfer, only when called by `caller` (KoinDX router or our pool), only to `to`, at most `value`.
-    // Anything else asking to move the bot's tokens during the transaction is refused.
-    async guardAllowanceOp(bot, token, caller, to, value) {
-      const data = encodeTransfer(bot, to, value);
+    // One allowance per spend in THIS transaction: exactly this token, only its transfer, only when called by
+    // `caller` (KoinDX router or our pool), and used up by the first such call. The router/pool makes that call
+    // at the very start of the swap, from the amount in the bot's own top-level operation, before any other
+    // token's code runs, so a second request (e.g. from a scam token in the route) finds nothing and is refused.
+    // (No value/to in the allowance: tokens like KOIN don't pass call data to the authority check.)
+    async guardAllowanceOp(bot, token, caller /* , to, value: enforced by the router/pool operation itself */) {
       const { operation } = await new Contract({ id: bot, abi: GUARD_ABI, provider }).functions.set_allowance({
-        type: 1 /* transfer_token */, contract_id: contractAddr(token), entry_point: 0x27f576ca, caller, data: utils.encodeBase64url(data),
+        type: 1 /* transfer_token */, contract_id: contractAddr(token), entry_point: 0x27f576ca, caller,
       }, { onlyOperation: true });
       return operation;
     },
